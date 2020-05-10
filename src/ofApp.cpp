@@ -115,9 +115,14 @@ void ofApp::update()
                     Rect r = boundingRect(m_contours[i]);
                     // clang-format off
                     //
-                    if (r.width > 60 && r.height > 50 && r.height < m_plate_size.height && r.width <= m_plate_size.width &&
+                    if (r.width > 60 && r.height > 50  &&
+                        r.height <= m_plate_size.height && r.width <= m_plate_size.width &&
+                        r.height <= r.width && r.width >= r.height
+                        /*
                         r.x > m_mask_rect.x && r.x + r.width  < m_mask_rect.x + m_mask_rect.width &&
-                        r.y > m_mask_rect.y && r.y + r.height < m_mask_rect.y + m_mask_rect.height) {
+                        r.y > m_mask_rect.y && r.y + r.height < m_mask_rect.y + m_mask_rect.height
+*/
+                        ) {
 
                        // pusch the rectangle and starts detection
                         m_rect_found.push_back(r);
@@ -323,7 +328,8 @@ void ofApp::detect_ocr(Rect rect)
     m_ocr.update();
 
     uint64_t currentMillis = ofGetElapsedTimeMillis();
-    if ((int)(currentMillis - previousMillis) >= 100) {
+    // if ((int)(currentMillis - previousMillis) >= 100)
+    {
         string filename = "result_image.jpg";
         //  m_ocr.save(filename);
 
