@@ -79,7 +79,8 @@ void ofApp::update()
         m_frame.copyTo(m_maskOutput, m_mask);
 
         // Mat matgray;
-        convertColor(m_frame, m_frameGray, CV_RGB2GRAY);
+        //        convertColor(m_frame, m_frameGray, CV_RGB2GRAY);
+        convertColor(m_maskOutput, m_frameGray, CV_RGB2GRAY);
 
         ofImage gray;
         toOf(m_frameGray, gray);
@@ -134,10 +135,29 @@ void ofApp::update()
 void ofApp::draw()
 {
     ofBackground(ofColor::black);
+
+    switch (m_viewMode) {
+        case 1:
+            drawMat(m_frame, 0, 0);
+            break;
+        case 2:
+            drawMat(m_maskOutput, 0, 0);
+            break;
+        case 3:
+            drawMat(m_frameGray, 0, 0);
+            break;
+        case 4:
+            drawMat(m_cannyOutput, 0, 0);
+            break;
+
+        default:
+            break;
+    }
+
     //    m_video.draw(0, 0, 800, 600);
     //   drawMat(matgray, 0, 0);
-    //    drawMat(m_frameGray, 0, 0);
-    drawMat(m_maskOutput, 0, 0);
+    //    drawMat(m_cannyOutput, 0, 0);
+    //  drawMat(m_maskOutput, 0, 0);
 
     // m_grayImage.draw(0, 0);
 
@@ -382,6 +402,26 @@ void ofApp::keyPressed(int key)
 {
     if (key == 'c') {
         m_plate_number = {};
+    }
+
+    if (key == '1') {
+        m_viewMode = 1;
+        return;
+    }
+
+    if (key == '2') {
+        m_viewMode = 2;
+        return;
+    }
+
+    if (key == '3') {
+        m_viewMode = 3;
+        return;
+    }
+
+    if (key == '4') {
+        m_viewMode = 4;
+        return;
     }
 
     if (m_isVideoMode) {

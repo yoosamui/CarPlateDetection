@@ -40,7 +40,7 @@ class ofApp : public ofBaseApp
     int m_match_counter = -1;
     long m_frameNumber = 0;
     cv::Mat m_frame;
-
+    int m_viewMode = 1;
     Mat m_frameGray;
     Mat m_matGrayBg;
     Mat m_cannyOutput;
