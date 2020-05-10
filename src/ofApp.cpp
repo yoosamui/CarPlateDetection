@@ -4,6 +4,19 @@
 #include <regex>
 #include <string>
 
+#include <stdlib.h>
+#include <stdexcept>
+#include "math.h"
+// dd#include "ofApp.h"
+#include "ofAppRunner.h"
+#include "ofGraphics.h"
+#include "ofPolyline.h"
+#include "ofRectangle.h"
+#include "stdio.h"
+//#include "ofxBaseGui.h"
+//#include "ofxGuiGroup.h"
+#include <time.h>
+
 #define CAM_WIDTH 640
 #define CAM_HEIGHT 480
 
@@ -46,6 +59,8 @@ void ofApp::setup()
         // setup camera (w,h,color = true,gray = false);
         cam.setup(CAM_WIDTH, CAM_HEIGHT, true);
     }
+
+    this->updateMask();
 }
 
 //--------------------------------------------------------------
@@ -61,6 +76,8 @@ void ofApp::update()
 
     if (!m_frame.empty()) {
         m_frameNumber++;
+        m_frame.copyTo(m_maskOutput, m_mask);
+
         // Mat matgray;
         convertColor(m_frame, m_frameGray, CV_RGB2GRAY);
 
@@ -97,7 +114,7 @@ void ofApp::update()
                     Rect r = boundingRect(m_contours[i]);
                     // clang-format off
                     //
-                    if (r.width > 60 && r.height > 20 && r.height < m_plate_size.height && r.width <= m_plate_size.width &&
+                    if (r.width > 60 && r.height > 50 && r.height < m_plate_size.height && r.width <= m_plate_size.width &&
                         r.x > m_mask_rect.x && r.x + r.width  < m_mask_rect.x + m_mask_rect.width &&
                         r.y > m_mask_rect.y && r.y + r.height < m_mask_rect.y + m_mask_rect.height) {
 
@@ -120,8 +137,10 @@ void ofApp::draw()
     //    m_video.draw(0, 0, 800, 600);
     //   drawMat(matgray, 0, 0);
     //    drawMat(m_frameGray, 0, 0);
-    //    drawMat(m_cannyOutput, 0, 0);
-    m_grayImage.draw(0, 0);
+    drawMat(m_maskOutput, 0, 0);
+
+    // m_grayImage.draw(0, 0);
+
     // m_grayBg.draw(0, 0);
     // frameGrayImg.draw(0, 0);
     //    m_grayDiff.draw(0, 0);
@@ -181,8 +200,75 @@ void ofApp::draw()
 
     m_font.drawString(m_plate_number, 400, 680);
 }
+
+void ofApp::updateMask()
+{
+    // clang-format off
+
+    m_maskPoints.clear();
+    m_maskOutput.release();
+
+    m_maskPoints.push_back(cv::Point(m_mask_rect.x, m_mask_rect.y));
+    m_maskPoints.push_back(cv::Point(m_mask_rect.x + m_mask_rect.width, m_mask_rect.y));
+    m_maskPoints.push_back(cv::Point(m_mask_rect.x + m_mask_rect.width, m_mask_rect.y + m_mask_rect.height));
+    m_maskPoints.push_back(cv::Point(m_mask_rect.x, m_mask_rect.y + m_mask_rect.height));
+    m_maskPoints.push_back(cv::Point(m_mask_rect.x, m_mask_rect.y));
+
+    // clang-format on
+
+    this->createMask();
+}
+
+void ofApp::createMask()
+{
+    if (m_maskPoints.size() == 0) {
+        m_maskPoints.push_back(cv::Point(2, 2));
+        m_maskPoints.push_back(cv::Point(CAM_WIDTH - 2, 2));
+        m_maskPoints.push_back(cv::Point(CAM_WIDTH - 2, CAM_HEIGHT - 2));
+        m_maskPoints.push_back(cv::Point(2, CAM_HEIGHT - 2));
+        m_maskPoints.push_back(cv::Point(2, 2));
+    }
+
+    CvMat* matrix = cvCreateMat(CAM_HEIGHT, CAM_WIDTH, CV_8UC1);
+    m_mask = cvarrToMat(matrix);  // OpenCV provided this function instead of Mat(matrix).
+
+    for (int i = 0; i < m_mask.cols; i++) {
+        for (int j = 0; j < m_mask.rows; j++) m_mask.at<uchar>(cv::Point(i, j)) = 0;
+    }
+
+    vector<cv::Point> polyright;
+    approxPolyDP(m_maskPoints, polyright, 1.0, true);
+    fillConvexPoly(m_mask, &polyright[0], polyright.size(), 255, 8, 0);
+
+    /*
+        if (config.maskPoints.size() == 0) {
+
+            config.maskPoints.push_back(cv::Point(2, 2));
+            config.maskPoints.push_back(cv::Point(CAMERAWIDTH - 2, 2));
+            config.maskPoints.push_back(cv::Point(CAMERAWIDTH - 2, CAMERAHEIGHT - 2));
+            config.maskPoints.push_back(cv::Point(2, CAMERAHEIGHT - 2));
+            config.maskPoints.push_back(cv::Point(2, 2));
+        }
+
+        mask = cvCreateMat(CAMERAHEIGHT, CAMERAWIDTH, CV_8UC1);
+        for (int i = 0; i < mask.cols; i++)
+
+            for (int j = 0; j < mask.rows; j++)
+                mask.at<uchar>(cv::Point(i, j)) = 0;
+
+        vector<cv::Point> polyright;
+        approxPolyDP(config.maskPoints, polyright, 1.0, true);
+        fillConvexPoly(mask, &polyright[0], polyright.size(), 255, 8, 0);
+        */
+}
+
 unsigned long previousMillis = 0;
 
+/**
+ *
+ *
+ *
+ */
 void ofApp::detect_ocr(Rect rect)
 {
     if (!m_plate_number.empty()) {
@@ -221,6 +307,7 @@ void ofApp::detect_ocr(Rect rect)
         string filename = "result_image.jpg";
         //  m_ocr.save(filename);
 
+        printf("ocr-image -->  %f %f\n", m_ocr.getWidth(), m_ocr.getHeight());
         // https://docs.opencv.org/3.4/d7/ddc/classcv_1_1text_1_1OCRTesseract.html
         // be sure that the export var has the eng.training
         static auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
@@ -327,18 +414,26 @@ void ofApp::keyPressed(int key)
         // resize mask
         if (m_key_control_set && key == OF_KEY_UP) {
             dispacher->height -= m_increment;
+
+            if (dispacher == &m_mask_rect) this->updateMask();
         }
 
         if (m_key_control_set && key == OF_KEY_DOWN) {
             dispacher->height += m_increment;
+
+            if (dispacher == &m_mask_rect) this->updateMask();
         }
 
         if (m_key_control_set && key == OF_KEY_LEFT) {
             dispacher->width -= m_increment;
+
+            if (dispacher == &m_mask_rect) this->updateMask();
         }
 
         if (m_key_control_set && key == OF_KEY_RIGHT) {
             dispacher->width += m_increment;
+
+            if (dispacher == &m_mask_rect) this->updateMask();
         }
 
         return;
@@ -347,16 +442,24 @@ void ofApp::keyPressed(int key)
     // move mask
     if (OF_KEY_UP == key) {
         dispacher->y -= m_increment;
+
+        if (dispacher == &m_mask_rect) this->updateMask();
     }
     if (OF_KEY_DOWN == key) {
         dispacher->y += m_increment;
+
+        if (dispacher == &m_mask_rect) this->updateMask();
     }
 
     if (OF_KEY_LEFT == key) {
         dispacher->x -= m_increment;
+
+        if (dispacher == &m_mask_rect) this->updateMask();
     }
     if (OF_KEY_RIGHT == key) {
         dispacher->x += m_increment;
+
+        if (dispacher == &m_mask_rect) this->updateMask();
     }
 }
 

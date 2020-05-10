@@ -1,2 +1,4 @@
+#ofxHttpUtils
 ofxCv
 ofxOpenCv
+

@@ -4,7 +4,7 @@
 #include "ofMain.h"
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
-
+//#include "ofxHttpUtils.h"
 // clang-format on
 
 using namespace ofxCv;
@@ -29,6 +29,8 @@ class ofApp : public ofBaseApp
     void dragEvent(ofDragInfo dragInfo);
     void gotMessage(ofMessage msg);
 
+    void createMask();
+    void updateMask();
     void detect_ocr(Rect rect);
     std::string exec(const char* cmd);
     ///
@@ -55,4 +57,8 @@ class ofApp : public ofBaseApp
     ofTrueTypeFont m_font;
     string m_plate_number = "";
     Rect m_mask_rect;
+    //  ofxHttpUtils m_httpUtils;
+    vector<Point> m_maskPoints;
+    cv::Mat m_mask;
+    cv::Mat m_maskOutput;
 };
