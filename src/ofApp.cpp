@@ -31,6 +31,7 @@
 void ofApp::setup()
 {
     ofSetVerticalSync(true);
+    ofSetWindowTitle("Number recognition v1.0");
     // needed for tesseract
     setlocale(LC_ALL, "C");
     setlocale(LC_CTYPE, "C");
@@ -49,7 +50,7 @@ void ofApp::setup()
     centerY = ((m_mask_rect.height / 2) + h / 2);
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
-    m_plate_size_min = Rect(centerX, centerY, 20, 20);
+    m_plate_size_min = Rect(centerX, centerY, 30, 30);
 
     // load default video
     m_isVideoMode = m_video.load("videos/default.mov");
@@ -396,32 +397,38 @@ void ofApp::detect_ocr(Rect rect)
 
 #endif
 
-    m_ocr.resize(m_ocr.getWidth() + 20, m_ocr.getHeight() + 20);
+    m_ocr.resize(m_ocr.getWidth() + 4, m_ocr.getHeight() + 4);
     m_ocr.update();
 
     uint64_t currentMillis = ofGetElapsedTimeMillis();
     // if ((int)(currentMillis - previousMillis) >= 100)
     {
-        string filename = "result_image.jpg";
-        //  m_ocr.save(filename);
+        string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+        // string filename = "result_image.jpg";
+        //   m_ocr.save(filename);
 
         //  printf("ocr-image -->  %f %f\n", m_ocr.getWidth(), m_ocr.getHeight());
         // https://docs.opencv.org/3.4/d7/ddc/classcv_1_1text_1_1OCRTesseract.html
         // be sure that the export var has the eng.training
-        static auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
+        auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 1, 6);
 
         Mat img;
         img = toCv(m_ocr);
         string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
 
-        if (pnumber.empty() || pnumber.length() == 1) {
-            ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
+        if (pnumber.empty() == false) {
+            printf(pnumber.c_str());
+            printf("\n");
+        }
+
+        if (pnumber.empty()) {
+            auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
             text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
             pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
         }
 
-        if (pnumber.length() > 1) {
+        if (!pnumber.empty()) {
             printf(pnumber.c_str());
             printf("\n");
 
