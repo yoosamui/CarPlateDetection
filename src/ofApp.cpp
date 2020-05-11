@@ -1,9 +1,12 @@
 #include "ofApp.h"
+#include <algorithm>
 #include <locale>
 #include <opencv2/text/ocr.hpp>
 #include <regex>
 #include <string>
+#include <vector>
 
+/*
 #include <stdlib.h>
 #include <stdexcept>
 #include "math.h"
@@ -16,12 +19,12 @@
 //#include "ofxBaseGui.h"
 //#include "ofxGuiGroup.h"
 #include <time.h>
-
+*/
 #define CAM_WIDTH 640
 #define CAM_HEIGHT 480
 
 // work best without preprocessing
-#define OCR_PROCESS_IMAGE 1
+//#define OCR_PROCESS_IMAGE 1
 
 // https://github.com/tesseract-ocr/tessdoc/blob/master/Compiling-%E2%80%93-GitInstallation.md
 //--------------------------------------------------------------
@@ -33,12 +36,23 @@ void ofApp::setup()
     setlocale(LC_CTYPE, "C");
     setlocale(LC_NUMERIC, "C");
 
-    m_mask_rect = Rect(50, 200, 300, 300);
-    m_plate_size = Rect(1, 1, 150, 80);
+    int h = 300;
+    int w = 450;
+    int centerX = (CAM_WIDTH / 2) - w / 2;
+    int centerY = (CAM_HEIGHT / 2) - h / 2;
 
+    m_mask_rect = Rect(centerX, centerY, w, h);
+
+    h = 100;
+    w = 200;
+    centerX = (m_mask_rect.width / 2);  //- (w / 2);
+    centerY = ((m_mask_rect.height / 2) + h / 2);
+
+    m_plate_size_max = Rect(centerX, centerY, w, h);
+    m_plate_size_min = Rect(centerX, centerY, 20, 20);
+
+    // load default video
     m_isVideoMode = m_video.load("videos/default.mov");
-
-    printf("......>%d\n", m_isVideoMode);
 
     // ofxCvColorImage colorImg;
     // colorImg.allocate(img.getWidth(), img.getHeight());
@@ -115,8 +129,8 @@ void ofApp::update()
                     Rect r = boundingRect(m_contours[i]);
                     // clang-format off
                     //
-                    if (r.width > 60 && r.height > 50  &&
-                        r.height <= m_plate_size.height && r.width <= m_plate_size.width &&
+                    if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
+                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
                         r.height <= r.width && r.width >= r.height
                         /*
                         r.x > m_mask_rect.x && r.x + r.width  < m_mask_rect.x + m_mask_rect.width &&
@@ -124,12 +138,50 @@ void ofApp::update()
 */
                         ) {
 
-                       // pusch the rectangle and starts detection
+                       // pusch the rectangle
                         m_rect_found.push_back(r);
-                        this->detect_ocr(r);
 
                     }
                     // clang-format on
+                }
+            }
+        }
+
+        bool m_accurate = false;
+        n = m_rect_found.size();
+        if (n > 0) {
+            std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
+            for (int i = 0; i < n; i++) {
+                Rect r = m_rect_found[i];
+
+                if (m_accurate) {
+                    vector<int> lastfound;
+                    for (int z = 0; z < 4; z++) {
+                        this->detect_ocr(r);
+                        if (!m_plate_number.empty()) {
+                            int number = std::stoi(m_plate_number);
+                            vector<int>::iterator it =
+                                find(lastfound.begin(), lastfound.end(), number);
+
+                            if (it != lastfound.end()) {
+                                return;
+                                // found it
+                            } else {
+                                lastfound.push_back(std::stoi(m_plate_number));
+                                m_plate_number = {};
+                                // doesn't exist
+                            }
+                        }
+                    }
+
+                    n = lastfound.size();
+                    for (int z = 0; z < n; z++) {
+                        printf("-> %d\n", lastfound[i]);
+                    }
+
+                } else {
+                    // start ocr detection
+                    this->detect_ocr(r);
                 }
             }
         }
@@ -178,11 +230,18 @@ void ofApp::draw()
     ofDrawRectangle(m_mask_rect.x, m_mask_rect.y, m_mask_rect.width, m_mask_rect.height);
 
     // show the plate size
-    ofDrawRectangle(m_plate_size.x, m_plate_size.y, m_plate_size.width, m_plate_size.height);
+    ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
+                    m_plate_size_max.height);
     char lbl_rectbuf[128];
-    sprintf(lbl_rectbuf, "%d %d  %d %d", m_plate_size.x, m_plate_size.y, m_plate_size.width,
-            m_plate_size.height);
-    ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size.x, m_plate_size.y);
+    sprintf(lbl_rectbuf, "%d %d  %d %d", m_plate_size_max.x, m_plate_size_max.y,
+            m_plate_size_max.width, m_plate_size_max.height);
+    ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_max.x, m_plate_size_max.y);
+
+    ofDrawRectangle(m_plate_size_min.x, m_plate_size_min.y, m_plate_size_min.width,
+                    m_plate_size_min.height);
+    sprintf(lbl_rectbuf, "%d %d  %d %d", m_plate_size_min.x, m_plate_size_min.y,
+            m_plate_size_min.width, m_plate_size_min.height);
+    ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_min.x, m_plate_size_min.y);
 
     if (m_plate_number.empty() /* && m_match_counter != 0 */) {
         //  Rect r = m_rect_found[0];
@@ -221,9 +280,11 @@ void ofApp::draw()
 
     if (m_ocr.getPixels().size() > 1) {
         m_ocr.draw(0, 610);
-    }
+        m_font.drawString(m_plate_number, 400, 680);
 
-    m_font.drawString(m_plate_number, 400, 680);
+        //  sprintf(lbl_rectbuf, "size  %d %d", m_ocr.getWidth(), m_ocr.getHeight());
+        //  ofDrawBitmapStringHighlight(lbl_rectbuf, 1, CAM_HEIGHT - 24);
+    }
 }
 
 void ofApp::updateMask()
@@ -287,6 +348,17 @@ void ofApp::createMask()
         */
 }
 
+bool ofApp::compare_entry(const Rect& e1, const Rect& e2)
+{
+    // bool myfunction (my_data i, my_data j) { return ( i.data_one < j.data_one); }
+
+    return e1.width < e2.width;
+
+    //  return e1.width != e2.width ? e1.width < e2.width : e1.height < e2.height;
+    //    if (e1.width != e2.width) return (e1.width < e2.width);
+    //    return (e1.height < e2.height);
+}
+
 unsigned long previousMillis = 0;
 
 /**
@@ -333,7 +405,7 @@ void ofApp::detect_ocr(Rect rect)
         string filename = "result_image.jpg";
         //  m_ocr.save(filename);
 
-        printf("ocr-image -->  %f %f\n", m_ocr.getWidth(), m_ocr.getHeight());
+        //  printf("ocr-image -->  %f %f\n", m_ocr.getWidth(), m_ocr.getHeight());
         // https://docs.opencv.org/3.4/d7/ddc/classcv_1_1text_1_1OCRTesseract.html
         // be sure that the export var has the eng.training
         static auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
@@ -446,7 +518,7 @@ void ofApp::keyPressed(int key)
         m_plate_rectangle_set = !m_plate_rectangle_set;
     }
 
-    Rect* dispacher = m_plate_rectangle_set ? &m_plate_size : &m_mask_rect;
+    Rect* dispacher = m_plate_rectangle_set ? &m_plate_size_max : &m_mask_rect;
 
     //
     //    printf("Key = %d\n", key);

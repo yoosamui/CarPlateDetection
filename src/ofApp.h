@@ -32,6 +32,7 @@ class ofApp : public ofBaseApp
     void createMask();
     void updateMask();
     void detect_ocr(Rect rect);
+    static bool compare_entry(const Rect& e1, const Rect& e2);
     std::string exec(const char* cmd);
     ///
     ofVideoPlayer m_video;
@@ -51,7 +52,8 @@ class ofApp : public ofBaseApp
     vector<Vec4i> m_hierarchy;
     vector<vector<Point>> m_contours;
 
-    Rect m_plate_size;
+    Rect m_plate_size_max;
+    Rect m_plate_size_min;
     vector<Rect> m_rect_found;
     ofImage m_ocr;
     ofTrueTypeFont m_font;
