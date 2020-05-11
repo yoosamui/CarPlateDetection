@@ -113,7 +113,7 @@ void ofApp::threadFunction()
             if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
                 //            if (!m_ocrQueue.empty() && m_plate_number.empty()) {
                 string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-                auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
+                auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 1, 6);
 
                 Mat img;
                 img = toCv(m_ocr);
