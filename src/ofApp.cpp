@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 
+#include <condition_variable>
+#include <mutex>
+#include <queue>
 /*
 #include <stdlib.h>
 #include <stdexcept>
@@ -27,6 +30,11 @@
 //#define OCR_PROCESS_IMAGE 1
 
 // https://github.com/tesseract-ocr/tessdoc/blob/master/Compiling-%E2%80%93-GitInstallation.md
+
+ofImage ofApp::m_ocr;
+vector<int> ofApp::m_platedb;
+string ofApp::m_plate_number;
+std::queue<ofImage> ofApp::m_ocrQueue;
 //--------------------------------------------------------------
 void ofApp::setup()
 {
@@ -36,6 +44,8 @@ void ofApp::setup()
     setlocale(LC_ALL, "C");
     setlocale(LC_CTYPE, "C");
     setlocale(LC_NUMERIC, "C");
+
+    m_plate_number = {};
 
     int h = 300;
     int w = 450;
@@ -50,7 +60,17 @@ void ofApp::setup()
     centerY = ((m_mask_rect.height / 2) + h / 2);
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
-    m_plate_size_min = Rect(centerX, centerY, 30, 30);
+    m_plate_size_min = Rect(centerX, centerY, 20, 20);
+
+    m_platedb.push_back(1402);
+    m_platedb.push_back(396);
+    m_platedb.push_back(356);
+    m_platedb.push_back(149);
+    m_platedb.push_back(357);
+    m_platedb.push_back(146);
+    m_platedb.push_back(470);
+    m_platedb.push_back(7095);
+    m_platedb.push_back(4349);
 
     // load default video
     m_isVideoMode = m_video.load("videos/default.mov");
@@ -76,8 +96,66 @@ void ofApp::setup()
     }
 
     this->updateMask();
+    // Start the background thread for application start animation
+    m_ocrthread = new std::thread(threadFunction);
+
+    //    m_threadOcr.startThread();
 }
 
+std::mutex qMutex;
+
+void ofApp::threadFunction()
+{
+    //    static ofImage ocrImage;
+    // if (m_ocr.getPixels().size() > 0)
+    {
+        while (true) {
+            if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
+                //            if (!m_ocrQueue.empty() && m_plate_number.empty()) {
+                string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+                auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
+
+                Mat img;
+                img = toCv(m_ocr);
+                string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
+                string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
+
+                if (pnumber.empty() == false) {
+                    printf(pnumber.c_str());
+                    printf("\n");
+                }
+
+                if (pnumber.length() == 0) {
+                    auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
+                    string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
+                    pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
+                }
+
+                if (pnumber.length() > 1) {
+                    printf(pnumber.c_str());
+                    printf("\n");
+
+                    //            string filename = "ocr_image_" +
+                    ofGetTimestampString() + ".jpg";
+                    //      m_ocr.save(filename);
+
+                    try {
+                        int number = stoi(pnumber);
+                        vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
+
+                        if (it != m_platedb.end()) {
+                            m_plate_number = pnumber;
+                        }
+                    } catch (...) {
+                        // Swallow;
+                        printf("Exception\n");
+                    }
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+}
 //--------------------------------------------------------------
 void ofApp::update()
 {
@@ -397,15 +475,20 @@ void ofApp::detect_ocr(Rect rect)
 
 #endif
 
-    m_ocr.resize(m_ocr.getWidth() + 4, m_ocr.getHeight() + 4);
+    m_ocr.resize(m_ocr.getWidth() + 8, m_ocr.getHeight() + 8);
     m_ocr.update();
+    //    m_ocrQueue.push(m_ocr);
+
+    return;
+
+    ////
 
     uint64_t currentMillis = ofGetElapsedTimeMillis();
     // if ((int)(currentMillis - previousMillis) >= 100)
     {
         string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
         // string filename = "result_image.jpg";
-        //   m_ocr.save(filename);
+        //        m_ocr.save(filename);
 
         //  printf("ocr-image -->  %f %f\n", m_ocr.getWidth(), m_ocr.getHeight());
         // https://docs.opencv.org/3.4/d7/ddc/classcv_1_1text_1_1OCRTesseract.html
@@ -414,6 +497,11 @@ void ofApp::detect_ocr(Rect rect)
 
         Mat img;
         img = toCv(m_ocr);
+
+        //  m_threadOcr.update(img);
+        //  return;
+
+        ///////////////
         string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
 
@@ -435,7 +523,12 @@ void ofApp::detect_ocr(Rect rect)
             string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
             //      m_ocr.save(filename);
 
-            m_plate_number = pnumber;
+            int number = stoi(pnumber);
+            vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
+
+            if (it != m_platedb.end()) {
+                m_plate_number = pnumber;
+            }
         }
 
         // save the last time we was here
@@ -487,6 +580,8 @@ void ofApp::keyPressed(int key)
 {
     if (key == 'c') {
         m_plate_number = {};
+        m_ocr.clear();
+        return;
     }
 
     if (key == '1') {

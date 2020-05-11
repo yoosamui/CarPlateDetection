@@ -4,6 +4,9 @@
 #include "ofMain.h"
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
+//#include "threadedocr.h"
+#include <thread>
+#include <queue>          // std::queue
 //#include "ofxHttpUtils.h"
 // clang-format on
 
@@ -33,6 +36,7 @@ class ofApp : public ofBaseApp
     void updateMask();
     void detect_ocr(Rect rect);
     static bool compare_entry(const Rect& e1, const Rect& e2);
+    static void threadFunction();
     std::string exec(const char* cmd);
     ///
     ofVideoPlayer m_video;
@@ -55,12 +59,18 @@ class ofApp : public ofBaseApp
     Rect m_plate_size_max;
     Rect m_plate_size_min;
     vector<Rect> m_rect_found;
-    ofImage m_ocr;
+    static ofImage m_ocr;
     ofTrueTypeFont m_font;
-    string m_plate_number = "";
+    static string m_plate_number;
     Rect m_mask_rect;
     //  ofxHttpUtils m_httpUtils;
     vector<Point> m_maskPoints;
     cv::Mat m_mask;
     cv::Mat m_maskOutput;
+
+    static vector<int> m_platedb;
+    //  ThreadedOcr m_threadOcr;
+    std::thread* m_ocrthread = nullptr;
+
+    static std::queue<ofImage> m_ocrQueue;
 };
