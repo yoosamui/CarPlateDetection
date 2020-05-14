@@ -582,7 +582,8 @@ obj/linux64/Release/src/ofApp.o: \
  /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvFloatImage.h \
  /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvShortImage.h \
  /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvContourFinder.h \
- /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvHaarFinder.h
+ /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvHaarFinder.h \
+ /media/yoo/develop/of_v0.11.0_linux64gcc6_release/apps/myApps/PlateRecognitionVideo_v1_0/src/thread_safe_queue.h
 
 /media/yoo/develop/of_v0.11.0_linux64gcc6_release/apps/myApps/PlateRecognitionVideo_v1_0/src/ofApp.h:
 
@@ -1783,3 +1784,5 @@ obj/linux64/Release/src/ofApp.o: \
 /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvContourFinder.h:
 
 /media/yoo/develop/of_v0.11.0_linux64gcc6_release/addons/ofxOpenCv/src/ofxCvHaarFinder.h:
+
+/media/yoo/develop/of_v0.11.0_linux64gcc6_release/apps/myApps/PlateRecognitionVideo_v1_0/src/thread_safe_queue.h:

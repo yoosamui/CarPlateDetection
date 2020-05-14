@@ -4,14 +4,19 @@
 #include "ofMain.h"
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
-//#include "threadedocr.h"
+
+#ifdef PI_CAM
+#include "ofxCvPiCam.h"
+#endif
+
 #include <thread>
 #include <queue>          // std::queue
-//#include "ofxHttpUtils.h"
 // clang-format on
-
+#include "thread_safe_queue.h"
 using namespace ofxCv;
 using namespace cv;
+
+//#define PI_CAM
 
 class ofApp : public ofBaseApp
 {
@@ -40,7 +45,13 @@ class ofApp : public ofBaseApp
     std::string exec(const char* cmd);
     ///
     ofVideoPlayer m_video;
+
+#ifdef PI_CAM
+    ofxCvPiCam cam;
+#else
     ofVideoGrabber cam;
+#endif
+
     bool m_isVideoMode = false;
     int m_match_counter = -1;
     long m_frameNumber = 0;
@@ -73,4 +84,5 @@ class ofApp : public ofBaseApp
     std::thread* m_ocrthread = nullptr;
 
     static std::queue<ofImage> m_ocrQueue;
+    static vector<ofImage*> m_ocrList;
 };
