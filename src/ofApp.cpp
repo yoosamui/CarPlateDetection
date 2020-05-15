@@ -117,7 +117,7 @@ void ofApp::setup()
     this->updateMask();
     // Start the background thread for application start animation
     m_ocrthread1 = new std::thread(threadFunction);
-    m_ocrthread2 = new std::thread(threadFunction);
+    //    m_ocrthread2 = new std::thread(threadFunction);
     //    m_ocrthread3 = new std::thread(threadFunction);
 }
 
