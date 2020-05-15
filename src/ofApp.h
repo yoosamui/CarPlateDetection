@@ -81,7 +81,9 @@ class ofApp : public ofBaseApp
 
     static vector<int> m_platedb;
     //  ThreadedOcr m_threadOcr;
-    std::thread* m_ocrthread = nullptr;
+    std::thread* m_ocrthread1 = nullptr;
+    std::thread* m_ocrthread2 = nullptr;
+    std::thread* m_ocrthread3 = nullptr;
 
     static std::queue<ofImage> m_ocrQueue;
     static vector<ofImage*> m_ocrList;
