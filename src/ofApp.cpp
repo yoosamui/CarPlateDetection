@@ -26,10 +26,10 @@ string ofApp::m_plate_number;
 
 std::vector<std::thread> producers, consumers;
 static int thread_id;
-ThreadSafeQueue<int> ts_queue(5);
+ThreadSafeQueue<std::thread::id> ts_queue(1000);
 static std::map<int, ofImage*> m_ocrMap;
 
-const int max_consumers = 1;
+const int max_consumers = 4;
 std::mutex tmutex;
 
 //--------------------------------------------------------------
@@ -136,7 +136,10 @@ void ofApp::process_tesseract()
                 if (it != m_platedb.end()) {
                     m_plate_number = pnumber;
 
+                    //   ts_queue.clear();
                     std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+                    // std::lock_guard<std::mutex> lock(tmutex);
+                    // producers.clear();
                 }
             } catch (...) {
                 // Swallow;
@@ -281,7 +284,8 @@ void ofApp::draw()
         ofDrawBitmapStringHighlight("searching...", 150, CAM_HEIGHT + 12);
     }
 
-    sprintf(lbl_rectbuf, "producers: %d", producers.size());
+    sprintf(lbl_rectbuf, "producers: %d consumers %d queue %d", producers.size(), consumers.size(),
+            thread_id);
     ofDrawBitmapStringHighlight(lbl_rectbuf, 1, 12);
 
     ofPushStyle();
@@ -362,6 +366,40 @@ bool ofApp::compare_entry(const Rect& e1, const Rect& e2)
     //    if (e1.width != e2.width) return (e1.width < e2.width);
     //    return (e1.height < e2.height);
 }
+/*
+void removeThread(std::thread::id id)
+{
+    std::lock_guard<std::mutex> lock(threadMutex);
+    auto iter = std::find_if(threadList.begin(), threadList.end(), [=](std::thread &t) { return
+(t.get_id() == id); }); if (iter != threadList.end())
+    {
+        iter->detach();
+        threadList.erase(iter);
+    }
+}https://stackoverflow.com/questions/46187414/remove-thread-from-vector-upon-thread-completion
+*/
+
+void ofApp::remove_producer(std::thread::id id)
+{
+    std::lock_guard<std::mutex> lock(tmutex);
+    auto iter = std::find_if(producers.begin(), producers.end(),
+                             [=](std::thread& t) { return (t.get_id() == id); });
+    if (iter != producers.end()) {
+        iter->detach();
+        producers.erase(iter);
+    }
+}
+
+void ofApp::remove_consumer(std::thread::id id)
+{
+    std::lock_guard<std::mutex> lock(tmutex);
+    auto iter = std::find_if(consumers.begin(), consumers.end(),
+                             [=](std::thread& t) { return (t.get_id() == id); });
+    if (iter != consumers.end()) {
+        iter->detach();
+        consumers.erase(iter);
+    }
+}
 
 /**
  *
@@ -409,18 +447,26 @@ void ofApp::detect_ocr(Rect rect)
     }
 
     // Create producers.
+    //   if (producers.size() < 100)
     producers.push_back(std::thread([&, thread_id]() {
+        std::thread::id id = std::this_thread::get_id();
         std::lock_guard<std::mutex> lock(tmutex);
-        ts_queue.push(thread_id);
+        ts_queue.push(id);
+
+        // std::async(remove_producers, std::this_thread::get_id());
+        //            printf("PRODUCER %d %ul\n", thread_id, std::this_thread::get_id());
     }));
 
     if (thread_id < max_consumers)
         // Create consumers.
         consumers.push_back(std::thread([&, thread_id]() {
-            int i = -1;
+            std::thread::id id;
             while (true) {
-                ts_queue.pop(i);
+                ts_queue.pop(id);
+                printf("CONSUMER %d %ul\n", thread_id, id);
                 ofApp::process_tesseract();
+                remove_producer(id);
+                remove_consumer(std::this_thread::get_id());
             }
         }));
 

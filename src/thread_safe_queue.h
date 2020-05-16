@@ -136,6 +136,12 @@ class ThreadSafeQueue
         cvPop.notify_all();
     }
 
+    void clear()
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        list.clear();
+    }
+
   private:
     // Whether the queue is running or closed.
     enum class State { OPEN, CLOSED };

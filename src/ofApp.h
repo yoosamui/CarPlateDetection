@@ -42,6 +42,8 @@ class ofApp : public ofBaseApp
     static void process_tesseract();
     void detect_ocr(Rect rect);
     static bool compare_entry(const Rect& e1, const Rect& e2);
+    static void remove_producer(std::thread::id id);
+    static void remove_consumer(std::thread::id id);
     std::string exec(const char* cmd);
     ///
     ofVideoPlayer m_video;
