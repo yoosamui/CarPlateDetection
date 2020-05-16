@@ -39,6 +39,7 @@ class ofApp : public ofBaseApp
 
     void createMask();
     void updateMask();
+    static void process_tesseract();
     void detect_ocr(Rect rect);
     static bool compare_entry(const Rect& e1, const Rect& e2);
     static void threadFunction();

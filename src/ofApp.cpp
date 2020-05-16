@@ -83,13 +83,15 @@ void ofApp::setup()
     m_platedb.push_back(149);
     m_platedb.push_back(357);
     m_platedb.push_back(146);
-    m_platedb.push_back(470);
-    m_platedb.push_back(7095);
+    m_platedb.push_back(470);   // sup moto
+    m_platedb.push_back(7095);  // ford sup
     m_platedb.push_back(4349);
     m_platedb.push_back(207);
+    m_platedb.push_back(9311);  // alex
+    m_platedb.push_back(7079);  // lars
 
-    m_platedb.push_back(3786);    // phone
-    m_platedb.push_back(357580);  // phone
+    m_platedb.push_back(3786);   // phone
+    m_platedb.push_back(93459);  // phone
 
     // load default video
     m_isVideoMode = m_video.load("videos/default.mov");
@@ -116,9 +118,50 @@ void ofApp::setup()
 
     this->updateMask();
     // Start the background thread for application start animation
-    m_ocrthread1 = new std::thread(threadFunction);
+    //    m_ocrthread1 = new std::thread(threadFunction);
     //    m_ocrthread2 = new std::thread(threadFunction);
     //    m_ocrthread3 = new std::thread(threadFunction);
+}
+
+void ofApp::process_tesseract()
+{
+    if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
+        auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
+
+        Mat img;
+        img = toCv(m_ocr);
+        string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
+        string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
+
+        if (pnumber.empty() == false) {
+            printf(pnumber.c_str());
+            printf("\n");
+        }
+
+        if (pnumber.length() == 0) {
+            auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
+            string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
+            pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
+        }
+
+        if (pnumber.length() > 1) {
+            printf(pnumber.c_str());
+            printf("\n");
+
+            try {
+                long number = stoi(pnumber);
+                vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
+
+                if (it != m_platedb.end()) {
+                    m_plate_number = pnumber;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+                }
+            } catch (...) {
+                // Swallow;
+                printf("Exception\n");
+            }
+        }
+    }
 }
 
 std::mutex qmutex;
@@ -126,8 +169,8 @@ void ofApp::threadFunction()
 {
     while (true) {
         if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
-            string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-            //    m_ocr.save(filename);
+            // string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+            //  m_ocr.save(filename);
             auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
 
             Mat img;
@@ -150,22 +193,18 @@ void ofApp::threadFunction()
                 printf(pnumber.c_str());
                 printf("\n");
 
-                //            string filename = "ocr_image_" +
-                // ofGetTimestampString() + ".jpg";
-                //      m_ocr.save(filename);
+                try {
+                    int number = stoi(pnumber);
+                    vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
 
-                //  try {
-                int number = stoi(pnumber);
-                vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
-
-                if (it != m_platedb.end()) {
-                    m_plate_number = pnumber;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+                    if (it != m_platedb.end()) {
+                        m_plate_number = pnumber;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+                    }
+                } catch (...) {
+                    // Swallow;
+                    printf("Exception\n");
                 }
-                // } catch (...) {
-                // Swallow;
-                //   printf("Exception\n");
-                // }
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -190,8 +229,6 @@ void ofApp::update()
         m_frameNumber++;
         m_frame.copyTo(m_maskOutput, m_mask);
 
-        // Mat matgray;
-        //        convertColor(m_frame, m_frameGray, CV_RGB2GRAY);
         convertColor(m_maskOutput, m_frameGray, CV_RGB2GRAY);
 
         ofImage gray;
@@ -202,8 +239,8 @@ void ofApp::update()
         m_rect_found.clear();
 
         if (!m_plate_number.empty()) {
-            //   m_ocr.clear();
-            //  return;
+            //    m_ocr.clear();
+            return;
         }
 
         // Perform Edge detection
@@ -467,14 +504,15 @@ unsigned long previousMillis = 0;
 void ofApp::detect_ocr(Rect rect)
 {
     if (!m_plate_number.empty()) {
-        //        if (m_ocr.getPixels().size() > 0) m_ocr.clear();
         return;
     }
 
+    // crop the image
     m_ocr.setFromPixels(m_grayImage.getPixels());
     m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
 #ifdef OCR_PROCESS_IMAGE
+
     // preprocess the image
     Mat gray = toCv(m_ocr);
     Mat matblur;
@@ -494,234 +532,32 @@ void ofApp::detect_ocr(Rect rect)
 
 #endif
 
+    // resize
     m_ocr.resize(m_ocr.getWidth() + 8, m_ocr.getHeight() + 8);
     m_ocr.update();
-    return;
 
-    // ofImage* image = new ofImage();
-    // image->setFromPixels(m_ocr.getPixels());
-    // Mat ocrmat = toCv(*image);
-
-    // std::lock_guard<std::mutex> lock(qmutex);
-    //
-    //    m_ocrList.push_back(image);
-
-    // uint64_t currentMillis = ofGetElapsedTimeMillis();
-    // if ((int)(currentMillis - previousMillis) >= 5000) {
-    //// save the last time we was here
-    // previousMillis = currentMillis;
-    //}
-
-    string filename = "/tmp/docklight/ocr_image_" + to_string(tID) + ".jpg";
-    m_ocr.save(filename);
-    //
-    if (tID++ > 1000) {
-        tID = 1;
-    }
-
-    return;
-
-    // m_ocrMap.insert(std::make_pair(tID, image));
-    //  m_ocrMap[tID] = image;
-
-    if (m_ocrMap.size() < 100) {
-        //  return;
-    }
     uint64_t currentMillis = ofGetElapsedTimeMillis();
     if ((int)(currentMillis - previousMillis) >= 100) {
-        // Create producers.
-        producers.push_back(std::thread([&, tID]() {
-            // Locked I/O.
-            {
-                std::lock_guard<std::mutex> lock(cerrMutex);
-                // std::cerr << "PRDUCER THREAD #" << tID << " pushing " << tID << "\n";
-            }
-            /// ts_queue.push(tID * NUM_THREADS + i);
-            ts_queue.push(tID);
-        }));
-        //        for (unsigned tID = NUM_THREADS; tID < 2 * NUM_THREADS; ++tID)
-        //  for (int z = 0; z < m_ocrMap.size(); z++)
-        consumers.push_back(std::thread([&, tID]() {
-            int i = -1;
-            int id = tID;
-            ofImage* oimg = nullptr;
-            Mat rmat;
-
-            ThreadSafeQueue<int>::QueueResult result;
-
-            while ((result = ts_queue.pop(i)) != ThreadSafeQueue<ofImage*>::CLOSED) {
-                // if (!oimg) continue;
-                // Mat img;
-                // img = toCv(*oimg);
-
-                std::lock_guard<std::mutex> lock(cerrMutex);
-                std::cerr << "CONSUMER THREAD #" << tID << " got: " << i << "\n";
-                string filename = "/tmp/docklight/ocr_image_" + to_string(tID) + ".jpg";
-                m_ocr.save(filename);
-                /*
-                                {
-                                    //    std::lock_guard<std::mutex> lock(cerrMutex);
-                                    auto it = m_ocrMap.find(i);
-                                    if (it != m_ocrMap.end()) {
-                                        ofImage* image = m_ocrMap[i];
-                                        Mat mat = toCv(*image);
-
-                                        // start ocr detection
-                                        auto ocrp = cv::text::OCRTesseract::create(NULL, "eng",
-                   "0123456789", 1, 6); string text = ocrp->run(mat, 40,
-                   cv::text::OCR_LEVEL_TEXTLINE); string pnumber = std::regex_replace(text,
-                   std::regex("([^0-9])"), "");
-
-                                        if (pnumber.empty()) {
-                                            auto ocrp =
-                                                cv::text::OCRTesseract::create(NULL, "eng",
-                   "0123456789", 3, 9); text = ocrp->run(mat, 10, cv::text::OCR_LEVEL_TEXTLINE);
-                                            pnumber = std::regex_replace(text,
-                   std::regex("([^0-9])"), "");
-                                        }
-
-                                        if (!pnumber.empty()) {
-                                            int number = stoi(pnumber);
-                                            vector<int>::iterator it =
-                                                find(m_platedb.begin(), m_platedb.end(),
-            number);
-
-                                            if (it != m_platedb.end()) {
-                                                m_plate_number = pnumber;
-                                            }
-                                            //  terminate();
-                                        }
-                                        printf("---------------------------->%s\n",
-                   pnumber.c_str());
-                                        // delete image;
-                                        m_ocrMap[i] = nullptr;
-                                        m_ocrMap.erase(i);  // erasing by key
-                                    }
-
-            }
-            */
-
-                return;
-
-                //   img = toCv(*oimg);
-
-                //            string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-                //          oimg->save(filename);
-
-                /*
-                                auto it = m_ocrMap.find(id);
-                                if (it != m_ocrMap.end()) {
-                                    ofImage* image = m_ocrMap[id];
-
-                                    auto ocrp = cv::text::OCRTesseract::create(NULL, "eng",
-                   "0123456789", 1, 6);
-
-
-                                    string text = ocrp->run(img, 40,
-                   cv::text::OCR_LEVEL_TEXTLINE); string pnumber = std::regex_replace(text,
-                   std::regex("([^0-9])"),
-                   "");
-
-                                    if (!pnumber.empty()) {
-                                        int number = stoi(pnumber);
-                                        vector<int>::iterator it = find(m_platedb.begin(),
-                   m_platedb.end(), number);
-
-                                        if (it != m_platedb.end()) {
-                                            m_plate_number = pnumber;
-                                        }
-                                        printf("---------------------------->%s\n",
-                   pnumber.c_str());
-                                        //  terminate();
-                                    }
-                                    //                    delete image;
-                                    m_ocrMap.erase(id);  // erasing by key
-                                }
-                                */
-                //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-
-            //// Locked I/O.
-            //{
-            // std::lock_guard<std::mutex> lock(cerrMutex);
-            // std::cerr << "CONSUMER THREAD #" << tID << " is done.\n";
-            //}
-            //
-        }));
-
         previousMillis = currentMillis;
     }
-    return;
 
-    // Wait for producers.
-    {
-        std::lock_guard<std::mutex> lock(cerrMutex);
-        std::cerr << "Closing Queue.\n";
-    }
-    //   for (auto& t : producers) t.join();
-    return;
-
-    //    m_ocrQueue.push(m_ocr);
-    //
-
-    return;
-
-    ////
-
-    // uint64_t currentMillis = ofGetElapsedTimeMillis();
-    // if ((int)(currentMillis - previousMillis) >= 100)
-    {
-        string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-        // string filename = "result_image.jpg";
-        //   m_ocr.save(filename);
-        //    m_ocrQueue.push(filename);
-        //        printf("Store\n");
-        return;
-
-        //  printf("ocr-image -->  %f %f\n", m_ocr.getWidth(), m_ocr.getHeight());
-        // https://docs.opencv.org/3.4/d7/ddc/classcv_1_1text_1_1OCRTesseract.html
-        // be sure that the export var has the eng.training
-        auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 1, 6);
-
-        Mat img;
-        img = toCv(m_ocr);
-
-        //  m_threadOcr.update(img);
-        //  return;
-
-        ///////////////
-        string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
-        string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-
-        if (pnumber.empty() == false) {
-            printf(pnumber.c_str());
-            printf("\n");
+    // Create producers.
+    producers.push_back(std::thread([&, tID]() {
+        {
+            std::lock_guard<std::mutex> lock(cerrMutex);
+            ts_queue.push(tID);
         }
+    }));
 
-        if (pnumber.empty()) {
-            auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
-            text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-            pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        }
-
-        if (!pnumber.empty()) {
-            printf(pnumber.c_str());
-            printf("\n");
-
-            string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-            //      m_ocr.save(filename);
-
-            int number = stoi(pnumber);
-            vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
-
-            if (it != m_platedb.end()) {
-                m_plate_number = pnumber;
+    if (tID < 1)
+        // Create consumers.
+        consumers.push_back(std::thread([&, tID]() {
+            while (true) {
+                ofApp::process_tesseract();
             }
-        }
+        }));
 
-        // save the last time we was here
-        //        previousMillis = currentMillis;
-    }
+    tID++;
 }
 
 std::string ofApp::exec(const char* cmd)
