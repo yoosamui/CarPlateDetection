@@ -9,49 +9,33 @@
 #include <regex>
 #include <string>
 #include <vector>
-/*
-#include <stdlib.h>
-#include <stdexcept>
-#include "math.h"
-// dd#include "ofApp.h"
-#include "ofAppRunner.h"
-#include "ofGraphics.h"
-#include "ofPolyline.h"
-#include "ofRectangle.h"
-#include "stdio.h"
-//#include "ofxBaseGui.h"
-//#include "ofxGuiGroup.h"
-#include <time.h>
-*/
+
 #define CAM_WIDTH 640
 #define CAM_HEIGHT 480
 
 // work best without preprocessing
 //#define OCR_PROCESS_IMAGE 1
 
-// https://github.com/tesseract-ocr/tessdoc/blob/master/Compiling-%E2%80%93-GitInstallation.md
-
+unsigned long previousMillis = 0;
 static int m_lock;
 vector<ofImage*> ofApp::m_ocrList;
 
 ofImage ofApp::m_ocr;
 vector<int> ofApp::m_platedb;
 string ofApp::m_plate_number;
-std::queue<ofImage> ofApp::m_ocrQueue;
 
-////
-unsigned const NUM_THREADS = 20;
-unsigned const COUNT = 10;
-std::mutex cerrMutex;
 std::vector<std::thread> producers, consumers;
-static int tID;
+static int thread_id;
 ThreadSafeQueue<int> ts_queue(5);
-// std::atomic<ofImage*> x(0);
 static std::map<int, ofImage*> m_ocrMap;
+
+const int max_consumers = 1;
+std::mutex tmutex;
+
 //--------------------------------------------------------------
 void ofApp::setup()
 {
-    tID = 0;
+    thread_id = 0;
 
     ofSetVerticalSync(true);
     ofSetWindowTitle("Number recognition v1.0");
@@ -79,6 +63,7 @@ void ofApp::setup()
 
     m_platedb.push_back(1402);
     m_platedb.push_back(396);
+    m_platedb.push_back(96);
     m_platedb.push_back(356);
     m_platedb.push_back(149);
     m_platedb.push_back(357);
@@ -117,10 +102,6 @@ void ofApp::setup()
     }
 
     this->updateMask();
-    // Start the background thread for application start animation
-    //    m_ocrthread1 = new std::thread(threadFunction);
-    //    m_ocrthread2 = new std::thread(threadFunction);
-    //    m_ocrthread3 = new std::thread(threadFunction);
 }
 
 void ofApp::process_tesseract()
@@ -154,6 +135,7 @@ void ofApp::process_tesseract()
 
                 if (it != m_platedb.end()) {
                     m_plate_number = pnumber;
+
                     std::this_thread::sleep_for(std::chrono::milliseconds(4000));
                 }
             } catch (...) {
@@ -164,52 +146,6 @@ void ofApp::process_tesseract()
     }
 }
 
-std::mutex qmutex;
-void ofApp::threadFunction()
-{
-    while (true) {
-        if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
-            // string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-            //  m_ocr.save(filename);
-            auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
-
-            Mat img;
-            img = toCv(m_ocr);
-            string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
-            string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-
-            if (pnumber.empty() == false) {
-                printf(pnumber.c_str());
-                printf("\n");
-            }
-
-            if (pnumber.length() == 0) {
-                auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
-                string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-                pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-            }
-
-            if (pnumber.length() > 1) {
-                printf(pnumber.c_str());
-                printf("\n");
-
-                try {
-                    int number = stoi(pnumber);
-                    vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
-
-                    if (it != m_platedb.end()) {
-                        m_plate_number = pnumber;
-                        std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-                    }
-                } catch (...) {
-                    // Swallow;
-                    printf("Exception\n");
-                }
-            }
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
 //--------------------------------------------------------------
 void ofApp::update()
 {
@@ -254,8 +190,7 @@ void ofApp::update()
         int n = m_contours.size();
         vector<Point> approx;
 
-        // find rectangle or squarei
-
+        // find rectangle or square
         for (int a = 0; a < 2; a++) {
             for (int i = 0; i < n; i++) {
                 approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.01,
@@ -267,10 +202,6 @@ void ofApp::update()
                     if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
                         r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
                         r.height <= r.width && r.width >= r.height
-                        /*
-                        r.x > m_mask_rect.x && r.x + r.width  < m_mask_rect.x + m_mask_rect.width &&
-                        r.y > m_mask_rect.y && r.y + r.height < m_mask_rect.y + m_mask_rect.height
-*/
                         ) {
 
                        // pusch the rectangle
@@ -289,35 +220,8 @@ void ofApp::update()
             for (int i = 0; i < n; i++) {
                 Rect r = m_rect_found[i];
 
-                if (m_accurate) {
-                    vector<int> lastfound;
-                    for (int z = 0; z < 4; z++) {
-                        this->detect_ocr(r);
-                        if (!m_plate_number.empty()) {
-                            int number = std::stoi(m_plate_number);
-                            vector<int>::iterator it =
-                                find(lastfound.begin(), lastfound.end(), number);
-
-                            if (it != lastfound.end()) {
-                                return;
-                                // found it
-                            } else {
-                                lastfound.push_back(std::stoi(m_plate_number));
-                                m_plate_number = {};
-                                // doesn't exist
-                            }
-                        }
-                    }
-
-                    n = lastfound.size();
-                    for (int z = 0; z < n; z++) {
-                        printf("-> %d\n", lastfound[i]);
-                    }
-
-                } else {
-                    // start ocr detection
-                    if (m_lock == 0) this->detect_ocr(r);
-                }
+                // start ocr detection
+                if (m_lock == 0) this->detect_ocr(r);
             }
         }
     }
@@ -346,19 +250,6 @@ void ofApp::draw()
             break;
     }
 
-    //    m_video.draw(0, 0, 800, 600);
-    //   drawMat(matgray, 0, 0);
-    //    drawMat(m_cannyOutput, 0, 0);
-    //  drawMat(m_maskOutput, 0, 0);
-
-    // m_grayImage.draw(0, 0);
-
-    // m_grayBg.draw(0, 0);
-    // frameGrayImg.draw(0, 0);
-    //    m_grayDiff.draw(0, 0);
-    //
-    //
-
     ofNoFill();
     ofSetLineWidth(2);
     ofSetColor(ofColor::white);
@@ -378,19 +269,21 @@ void ofApp::draw()
             m_plate_size_min.width, m_plate_size_min.height);
     ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_min.x, m_plate_size_min.y);
 
-    if (m_plate_number.empty() /* && m_match_counter != 0 */) {
-        //  Rect r = m_rect_found[0];
-        //  ofNoFill();
-        //  ofSetLineWidth(4);
-        //  ofSetColor(ofColor::white);
-        //        ofSetColor(yellowPrint);
-        //  ofDrawRectangle(r.x, r.y, r.width, r.height);
-        // if (m_match_counter++ > 1000) {
-        // m_plate_number = {};
-        //  m_match_counter = 0;
-        //  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        // }
+    // show mode
+    sprintf(lbl_rectbuf, "mode: %d", consumers.size());
+    ofDrawBitmapStringHighlight(lbl_rectbuf, 1, CAM_HEIGHT + 12);
+
+    // show threads
+    sprintf(lbl_rectbuf, "consumers: %d", consumers.size());
+    ofDrawBitmapStringHighlight(lbl_rectbuf, 50, CAM_HEIGHT + 12);
+
+    if (m_plate_number.empty()) {
+        ofDrawBitmapStringHighlight("searching...", 150, CAM_HEIGHT + 12);
     }
+
+    sprintf(lbl_rectbuf, "producers: %d", producers.size());
+    ofDrawBitmapStringHighlight(lbl_rectbuf, 1, 12);
+
     ofPushStyle();
 
     int n = m_rect_found.size();
@@ -416,9 +309,6 @@ void ofApp::draw()
     if (m_ocr.getPixels().size() > 1) {
         m_ocr.draw(0, 610);
         m_font.drawString(m_plate_number, 400, 680);
-
-        //  sprintf(lbl_rectbuf, "size  %d %d", m_ocr.getWidth(), m_ocr.getHeight());
-        //  ofDrawBitmapStringHighlight(lbl_rectbuf, 1, CAM_HEIGHT - 24);
     }
 }
 
@@ -460,27 +350,6 @@ void ofApp::createMask()
     vector<cv::Point> polyright;
     approxPolyDP(m_maskPoints, polyright, 1.0, true);
     fillConvexPoly(m_mask, &polyright[0], polyright.size(), 255, 8, 0);
-
-    /*
-        if (config.maskPoints.size() == 0) {
-
-            config.maskPoints.push_back(cv::Point(2, 2));
-            config.maskPoints.push_back(cv::Point(CAMERAWIDTH - 2, 2));
-            config.maskPoints.push_back(cv::Point(CAMERAWIDTH - 2, CAMERAHEIGHT - 2));
-            config.maskPoints.push_back(cv::Point(2, CAMERAHEIGHT - 2));
-            config.maskPoints.push_back(cv::Point(2, 2));
-        }
-
-        mask = cvCreateMat(CAMERAHEIGHT, CAMERAWIDTH, CV_8UC1);
-        for (int i = 0; i < mask.cols; i++)
-
-            for (int j = 0; j < mask.rows; j++)
-                mask.at<uchar>(cv::Point(i, j)) = 0;
-
-        vector<cv::Point> polyright;
-        approxPolyDP(config.maskPoints, polyright, 1.0, true);
-        fillConvexPoly(mask, &polyright[0], polyright.size(), 255, 8, 0);
-        */
 }
 
 bool ofApp::compare_entry(const Rect& e1, const Rect& e2)
@@ -493,8 +362,6 @@ bool ofApp::compare_entry(const Rect& e1, const Rect& e2)
     //    if (e1.width != e2.width) return (e1.width < e2.width);
     //    return (e1.height < e2.height);
 }
-
-unsigned long previousMillis = 0;
 
 /**
  *
@@ -542,22 +409,22 @@ void ofApp::detect_ocr(Rect rect)
     }
 
     // Create producers.
-    producers.push_back(std::thread([&, tID]() {
-        {
-            std::lock_guard<std::mutex> lock(cerrMutex);
-            ts_queue.push(tID);
-        }
+    producers.push_back(std::thread([&, thread_id]() {
+        std::lock_guard<std::mutex> lock(tmutex);
+        ts_queue.push(thread_id);
     }));
 
-    if (tID < 1)
+    if (thread_id < max_consumers)
         // Create consumers.
-        consumers.push_back(std::thread([&, tID]() {
+        consumers.push_back(std::thread([&, thread_id]() {
+            int i = -1;
             while (true) {
+                ts_queue.pop(i);
                 ofApp::process_tesseract();
             }
         }));
 
-    tID++;
+    thread_id++;
 }
 
 std::string ofApp::exec(const char* cmd)
