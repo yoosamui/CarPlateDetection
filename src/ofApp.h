@@ -44,6 +44,7 @@ class ofApp : public ofBaseApp
     static bool compare_entry(const Rect& e1, const Rect& e2);
     static void remove_producer(std::thread::id id);
     static void remove_consumer(std::thread::id id);
+    void wait_sensor();
     std::string exec(const char* cmd);
     ///
     ofVideoPlayer m_video;
@@ -89,4 +90,6 @@ class ofApp : public ofBaseApp
 
     static std::queue<ofImage> m_ocrQueue;
     static vector<ofImage*> m_ocrList;
+
+    int m_search_time = 0;
 };

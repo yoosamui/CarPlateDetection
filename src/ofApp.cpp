@@ -25,26 +25,27 @@ vector<int> ofApp::m_platedb;
 string ofApp::m_plate_number;
 
 std::vector<std::thread> producers, consumers;
-static int thread_id;
+static int thread_counter;
 ThreadSafeQueue<std::thread::id> ts_queue(1000);
 static std::map<int, ofImage*> m_ocrMap;
 
-const int max_consumers = 4;
+const int max_consumers = 1;
 std::mutex tmutex;
 
 //--------------------------------------------------------------
 void ofApp::setup()
 {
-    thread_id = 0;
+    thread_counter = 0;
 
     ofSetVerticalSync(true);
     ofSetWindowTitle("Number recognition v1.0");
+
     // needed for tesseract
     setlocale(LC_ALL, "C");
     setlocale(LC_CTYPE, "C");
     setlocale(LC_NUMERIC, "C");
-    m_lock = 0;
-    m_plate_number = {};
+
+    m_plate_number = "0";
 
     int h = 300;
     int w = 450;
@@ -136,10 +137,7 @@ void ofApp::process_tesseract()
                 if (it != m_platedb.end()) {
                     m_plate_number = pnumber;
 
-                    //   ts_queue.clear();
                     std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-                    // std::lock_guard<std::mutex> lock(tmutex);
-                    // producers.clear();
                 }
             } catch (...) {
                 // Swallow;
@@ -179,7 +177,18 @@ void ofApp::update()
 
         if (!m_plate_number.empty()) {
             //    m_ocr.clear();
+
             return;
+        } else {
+            uint64_t currentMillis = ofGetElapsedTimeMillis();
+            if ((int)(currentMillis - previousMillis) >= 1000) {
+                m_search_time++;
+                previousMillis = currentMillis;
+            }
+        }
+
+        if (m_search_time > 20) {
+            m_plate_number = "Wait!";
         }
 
         // Perform Edge detection
@@ -284,9 +293,14 @@ void ofApp::draw()
         ofDrawBitmapStringHighlight("searching...", 150, CAM_HEIGHT + 12);
     }
 
-    sprintf(lbl_rectbuf, "producers: %d consumers %d queue %d", producers.size(), consumers.size(),
-            thread_id);
+    sprintf(lbl_rectbuf, "producers: %d consumers %d ", producers.size(), consumers.size());
     ofDrawBitmapStringHighlight(lbl_rectbuf, 1, 12);
+
+    sprintf(lbl_rectbuf, "%d:%d:%d", ofGetHours(), ofGetMinutes(), ofGetSeconds());
+    ofDrawBitmapStringHighlight(lbl_rectbuf, 280, 12);
+
+    sprintf(lbl_rectbuf, "%d secs.", m_search_time);
+    ofDrawBitmapStringHighlight(lbl_rectbuf, 380, 12);
 
     ofPushStyle();
 
@@ -378,7 +392,11 @@ void removeThread(std::thread::id id)
     }
 }https://stackoverflow.com/questions/46187414/remove-thread-from-vector-upon-thread-completion
 */
-
+void ofApp::wait_sensor()
+{
+    m_search_time = 0;
+    m_plate_number = "Wait...";
+}
 void ofApp::remove_producer(std::thread::id id)
 {
     std::lock_guard<std::mutex> lock(tmutex);
@@ -440,37 +458,33 @@ void ofApp::detect_ocr(Rect rect)
     // resize
     m_ocr.resize(m_ocr.getWidth() + 8, m_ocr.getHeight() + 8);
     m_ocr.update();
-
-    uint64_t currentMillis = ofGetElapsedTimeMillis();
-    if ((int)(currentMillis - previousMillis) >= 100) {
-        previousMillis = currentMillis;
-    }
+    /*
+        uint64_t currentMillis = ofGetElapsedTimeMillis();
+        if ((int)(currentMillis - previousMillis) >= 100) {
+            previousMillis = currentMillis;
+        }
+        */
 
     // Create producers.
-    //   if (producers.size() < 100)
-    producers.push_back(std::thread([&, thread_id]() {
-        std::thread::id id = std::this_thread::get_id();
-        std::lock_guard<std::mutex> lock(tmutex);
-        ts_queue.push(id);
+    if (producers.size() < 1000)
+        producers.push_back(std::thread([&, thread_counter]() {
+            std::thread::id id = std::this_thread::get_id();
+            std::lock_guard<std::mutex> lock(tmutex);
+            ts_queue.push(id);
+        }));
 
-        // std::async(remove_producers, std::this_thread::get_id());
-        //            printf("PRODUCER %d %ul\n", thread_id, std::this_thread::get_id());
-    }));
-
-    if (thread_id < max_consumers)
+    if (thread_counter < max_consumers)
         // Create consumers.
-        consumers.push_back(std::thread([&, thread_id]() {
+        consumers.push_back(std::thread([&, thread_counter]() {
             std::thread::id id;
             while (true) {
                 ts_queue.pop(id);
-                printf("CONSUMER %d %ul\n", thread_id, id);
                 ofApp::process_tesseract();
                 remove_producer(id);
-                remove_consumer(std::this_thread::get_id());
             }
         }));
 
-    thread_id++;
+    thread_counter++;
 }
 
 std::string ofApp::exec(const char* cmd)
@@ -517,11 +531,15 @@ void ofApp::keyPressed(int key)
 {
     if (key == 'c') {
         m_plate_number = {};
-        ///   m_ocr.clear();
-        printf("restart \n");
+        m_search_time = 0;
+        return;
+    }
+    if (key == 's') {
+        wait_sensor();
         return;
     }
 
+    m_plate_number = {};
     if (key == '1') {
         m_viewMode = 1;
         return;
