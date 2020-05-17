@@ -39,8 +39,9 @@ class ofApp : public ofBaseApp
 
     void createMask();
     void updateMask();
+    void ocr_detection(Rect rect);
     static void process_tesseract();
-    void detect_ocr(Rect rect);
+
     static bool compare_entry(const Rect& e1, const Rect& e2);
     static void remove_producer(std::thread::id id);
     static void remove_consumer(std::thread::id id);
@@ -83,13 +84,7 @@ class ofApp : public ofBaseApp
     cv::Mat m_maskOutput;
 
     static vector<int> m_platedb;
-    //  ThreadedOcr m_threadOcr;
-    std::thread* m_ocrthread1 = nullptr;
-    std::thread* m_ocrthread2 = nullptr;
-    std::thread* m_ocrthread3 = nullptr;
-
     static std::queue<ofImage> m_ocrQueue;
-    static vector<ofImage*> m_ocrList;
 
     int m_search_time = 0;
 };

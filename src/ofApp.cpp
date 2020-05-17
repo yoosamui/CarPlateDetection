@@ -17,8 +17,6 @@
 //#define OCR_PROCESS_IMAGE 1
 
 unsigned long previousMillis = 0;
-static int m_lock;
-vector<ofImage*> ofApp::m_ocrList;
 
 ofImage ofApp::m_ocr;
 vector<int> ofApp::m_platedb;
@@ -29,7 +27,9 @@ static int thread_counter;
 ThreadSafeQueue<std::thread::id> ts_queue(1000);
 static std::map<int, ofImage*> m_ocrMap;
 
-const int max_consumers = 1;
+int max_producers = 1000;
+int max_consumers = 2;
+
 std::mutex tmutex;
 
 //--------------------------------------------------------------
@@ -233,7 +233,7 @@ void ofApp::update()
                 Rect r = m_rect_found[i];
 
                 // start ocr detection
-                if (m_lock == 0) this->detect_ocr(r);
+                this->ocr_detection(r);
             }
         }
     }
@@ -419,12 +419,7 @@ void ofApp::remove_consumer(std::thread::id id)
     }
 }
 
-/**
- *
- *
- *
- */
-void ofApp::detect_ocr(Rect rect)
+void ofApp::ocr_detection(Rect rect)
 {
     if (!m_plate_number.empty()) {
         return;
@@ -471,6 +466,9 @@ void ofApp::detect_ocr(Rect rect)
             std::thread::id id = std::this_thread::get_id();
             std::lock_guard<std::mutex> lock(tmutex);
             ts_queue.push(id);
+            // std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+            // m_ocr.save(filename);
         }));
 
     if (thread_counter < max_consumers)
@@ -536,6 +534,11 @@ void ofApp::keyPressed(int key)
     }
     if (key == 's') {
         wait_sensor();
+        return;
+    }
+
+    if (key == '+') {
+        max_consumers++;
         return;
     }
 
