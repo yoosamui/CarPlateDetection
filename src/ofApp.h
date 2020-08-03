@@ -16,7 +16,7 @@
 using namespace ofxCv;
 using namespace cv;
 
-//#define PI_CAM
+#define IP_CAM
 
 class ofApp : public ofBaseApp
 {

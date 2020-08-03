@@ -13,6 +13,8 @@
 #define CAM_WIDTH 640
 #define CAM_HEIGHT 480
 
+Mat masked;
+
 // work best without preprocessing
 //#define OCR_PROCESS_IMAGE 1
 
@@ -28,9 +30,14 @@ ThreadSafeQueue<std::thread::id> ts_queue(1000);
 static std::map<int, ofImage*> m_ocrMap;
 
 int max_producers = 1000;
-int max_consumers = 2;
+int max_consumers = 1;
 
 std::mutex tmutex;
+
+#ifdef IP_CAM
+cv::VideoCapture capture("rtsp://admin:admin@192.168.1.88:554/11",
+                         cv::CAP_ANY);  // 0 = autodetect default API
+#endif
 
 //--------------------------------------------------------------
 void ofApp::setup()
@@ -98,8 +105,10 @@ void ofApp::setup()
         //        video.setSpeed(VIDEOPLAYSPEED);
         m_video.play();
     } else {
+#ifndef IP_CAM
         // setup camera (w,h,color = true,gray = false);
         cam.setup(CAM_WIDTH, CAM_HEIGHT, true);
+#endif
     }
 
     this->updateMask();
@@ -137,7 +146,7 @@ void ofApp::process_tesseract()
                 if (it != m_platedb.end()) {
                     m_plate_number = pnumber;
 
-                    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+                    //  std::this_thread::sleep_for(std::chrono::milliseconds(4000));
                 }
             } catch (...) {
                 // Swallow;
@@ -154,8 +163,9 @@ void ofApp::update()
         m_video.update();
         m_frame = toCv(m_video);
     } else {
-#ifdef PI_CAM
-        m_frame = cam.grab();
+#ifdef IP_CAM
+        // m_frame = cam.grab();
+        capture.read(m_frame);
 #else
         cam.update();
         m_frame = toCv(cam);
@@ -164,13 +174,30 @@ void ofApp::update()
 
     if (!m_frame.empty()) {
         m_frameNumber++;
-        m_frame.copyTo(m_maskOutput, m_mask);
+
+        //#ifdef IP_CAM
+        Mat frame_resized(CAM_WIDTH, CAM_HEIGHT, CV_8UC4);
+        Size size(CAM_WIDTH, CAM_HEIGHT);
+        resize(m_frame, frame_resized, size);  // resize image
+        // resize(m_frame, m_maskOutput, size);  // resize image
+
+        //#endif
+        // printf("%d\n", m_mask_rect.height);
+        // terminate();
+
+        //#ifndef IP_CAM
+        // m_frame.copyTo(m_maskOutput, m_mask);
+        //        m_maskOutput.copyTo(masked, m_mask);//works
+        frame_resized.copyTo(m_maskOutput, m_mask);  // works
+
+        //   m_maskOutput.copyTo(m_mask);
+        //#endif
 
         convertColor(m_maskOutput, m_frameGray, CV_RGB2GRAY);
+        // convertColor(resized_frame, m_frameGray, CV_RGB2GRAY);
 
         ofImage gray;
         toOf(m_frameGray, gray);
-
         m_grayImage.setFromPixels(gray.getPixels());
 
         m_rect_found.clear();
@@ -187,8 +214,8 @@ void ofApp::update()
             }
         }
 
-        if (m_search_time > 20) {
-            m_plate_number = "Wait!";
+        if (m_search_time > 30) {
+            m_plate_number = "not found.";
         }
 
         // Perform Edge detection
@@ -211,15 +238,19 @@ void ofApp::update()
                     Rect r = boundingRect(m_contours[i]);
                     // clang-format off
                     //
+                     //   printf("Found %d\n ",i);
+                     //   m_rect_found.push_back(r);
+
                     if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
-                        r.height <= r.width && r.width >= r.height
+                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width// &&
+                //        r.height <= r.width && r.width >= r.height
                         ) {
 
                        // pusch the rectangle
                         m_rect_found.push_back(r);
 
                     }
+
                     // clang-format on
                 }
             }
@@ -270,7 +301,7 @@ void ofApp::draw()
     // show the plate size
     ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
                     m_plate_size_max.height);
-    char lbl_rectbuf[128];
+    char lbl_rectbuf[512];
     sprintf(lbl_rectbuf, "%d %d  %d %d", m_plate_size_max.x, m_plate_size_max.y,
             m_plate_size_max.width, m_plate_size_max.height);
     ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_max.x, m_plate_size_max.y);
@@ -282,12 +313,12 @@ void ofApp::draw()
     ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_min.x, m_plate_size_min.y);
 
     // show mode
-    sprintf(lbl_rectbuf, "mode: %d", consumers.size());
+    sprintf(lbl_rectbuf, "mode: %d", m_viewMode);
     ofDrawBitmapStringHighlight(lbl_rectbuf, 1, CAM_HEIGHT + 12);
 
     // show threads
     sprintf(lbl_rectbuf, "consumers: %d", consumers.size());
-    ofDrawBitmapStringHighlight(lbl_rectbuf, 50, CAM_HEIGHT + 12);
+    ofDrawBitmapStringHighlight(lbl_rectbuf, 80, CAM_HEIGHT + 12);
 
     if (m_plate_number.empty()) {
         ofDrawBitmapStringHighlight("searching...", 150, CAM_HEIGHT + 12);
@@ -299,7 +330,8 @@ void ofApp::draw()
     sprintf(lbl_rectbuf, "%d:%d:%d", ofGetHours(), ofGetMinutes(), ofGetSeconds());
     ofDrawBitmapStringHighlight(lbl_rectbuf, 280, 12);
 
-    sprintf(lbl_rectbuf, "%d secs.", m_search_time);
+    sprintf(lbl_rectbuf, "%d secs. rect found %d", m_search_time, m_rect_found.size());
+
     ofDrawBitmapStringHighlight(lbl_rectbuf, 380, 12);
 
     ofPushStyle();
@@ -312,11 +344,12 @@ void ofApp::draw()
         // ofSetColor(ofColor::white);
         ofSetColor(yellowPrint);
         ofDrawRectangle(r.x, r.y, r.width, r.height);
-
-        char lbl_rectbuf[128];
-        sprintf(lbl_rectbuf, "%d %d  %d %d", r.x, r.y, r.width, r.height);
-        ofDrawBitmapStringHighlight(lbl_rectbuf, r.x, r.y - 10);
-        //        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        /*
+                char lbl_rectbuf[128];
+                sprintf(lbl_rectbuf, "%d %d  %d %d", r.x, r.y, r.width, r.height);
+                ofDrawBitmapStringHighlight(lbl_rectbuf, r.x, r.y - 10);
+        */
+        //  std::this_thread::sleep_for(std::chrono::milliseconds(1150));
 
         //   string dimension = to_string(r.y);
         //   ofDrawBitmapStringHighlight(dimension, r.y, r.x);
@@ -544,21 +577,29 @@ void ofApp::keyPressed(int key)
 
     m_plate_number = {};
     if (key == '1') {
+        m_search_time = 0;
+        m_plate_number = "";
         m_viewMode = 1;
         return;
     }
 
     if (key == '2') {
+        m_search_time = 0;
+        m_plate_number = "";
         m_viewMode = 2;
         return;
     }
 
     if (key == '3') {
+        m_search_time = 0;
+        m_plate_number = "";
         m_viewMode = 3;
         return;
     }
 
     if (key == '4') {
+        m_search_time = 0;
+        m_plate_number = "";
         m_viewMode = 4;
         return;
     }
