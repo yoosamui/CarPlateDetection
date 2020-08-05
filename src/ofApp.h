@@ -40,7 +40,9 @@ class ofApp : public ofBaseApp
     void createMask();
     void updateMask();
     void ocr_detection(Rect rect);
-    static void process_tesseract();
+    void img_processor();
+    static bool is_ocr_detection_found(const string& text);
+    static bool process_tesseract();
 
     static bool compare_entry(const Rect& e1, const Rect& e2);
     static void remove_producer(std::thread::id id);
@@ -70,10 +72,12 @@ class ofApp : public ofBaseApp
 
     vector<Vec4i> m_hierarchy;
     vector<vector<Point>> m_contours;
+    bool is_duplicate(Rect rect);
 
     Rect m_plate_size_max;
     Rect m_plate_size_min;
     vector<Rect> m_rect_found;
+    static vector<Rect> m_rect_duplicates;
     static ofImage m_ocr;
     ofTrueTypeFont m_font;
     static string m_plate_number;

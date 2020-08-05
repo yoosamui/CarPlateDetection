@@ -29,6 +29,8 @@ static int thread_counter;
 ThreadSafeQueue<std::thread::id> ts_queue(1000);
 static std::map<int, ofImage*> m_ocrMap;
 
+vector<Rect> ofApp::m_rect_duplicates;
+
 int max_producers = 1000;
 int max_consumers = 1;
 
@@ -68,6 +70,8 @@ void ofApp::setup()
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
     m_plate_size_min = Rect(centerX, centerY, 20, 20);
+
+    m_platedb.push_back(200);
 
     m_platedb.push_back(1402);
     m_platedb.push_back(396);
@@ -114,48 +118,52 @@ void ofApp::setup()
     this->updateMask();
 }
 
-void ofApp::process_tesseract()
+bool ofApp::is_ocr_detection_found(const string& text)
+{
+    if (text.empty() || text.length() < 2) return false;
+
+    try {
+        long pnumber = std::stol(text);
+
+        // checks if exitst in database
+        vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), pnumber);
+
+        if (it != m_platedb.end()) {
+            m_plate_number = to_string(pnumber);
+            printf("-----FOUND\n");
+            m_rect_duplicates.clear();
+            return true;
+        }
+    } catch (const std::invalid_argument& ia) {
+        std::cerr << "Invalid argument: " << ia.what() << '\n';
+    }
+
+    return false;
+}
+bool ofApp::process_tesseract()
 {
     if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
         auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
 
         Mat img;
         img = toCv(m_ocr);
+
         string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
 
-        if (pnumber.empty() == false) {
-            printf(pnumber.c_str());
-            printf("\n");
-        }
+        if (is_ocr_detection_found(pnumber)) return true;
 
-        if (pnumber.length() == 0) {
-            auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
-            string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-            pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        }
+        ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
+        text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
+        pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
 
-        if (pnumber.length() > 1) {
-            printf(pnumber.c_str());
-            printf("\n");
-
-            try {
-                long number = stoi(pnumber);
-                vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), number);
-
-                if (it != m_platedb.end()) {
-                    m_plate_number = pnumber;
-
-                    //  std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-                }
-            } catch (...) {
-                // Swallow;
-                printf("Exception\n");
-            }
-        }
+        if (is_ocr_detection_found(pnumber)) return true;
     }
+
+    return false;
 }
 
+static bool isSet = false;
 //--------------------------------------------------------------
 void ofApp::update()
 {
@@ -176,12 +184,13 @@ void ofApp::update()
         m_frameNumber++;
 
         //#ifdef IP_CAM
-        Mat frame_resized(CAM_WIDTH, CAM_HEIGHT, CV_8UC4);
+        // Mat frame_resized(CAM_WIDTH, CAM_HEIGHT, CV_8UC4);
+        Mat frame_resized;
         Size size(CAM_WIDTH, CAM_HEIGHT);
         resize(m_frame, frame_resized, size);  // resize image
         // resize(m_frame, m_maskOutput, size);  // resize image
 
-        //#endif
+        //#e    ndif
         // printf("%d\n", m_mask_rect.height);
         // terminate();
 
@@ -200,6 +209,7 @@ void ofApp::update()
         toOf(m_frameGray, gray);
         m_grayImage.setFromPixels(gray.getPixels());
 
+        if (isSet) return;
         m_rect_found.clear();
 
         if (!m_plate_number.empty()) {
@@ -216,10 +226,11 @@ void ofApp::update()
 
         if (m_search_time > 30) {
             m_plate_number = "not found.";
+            m_rect_duplicates.clear();
         }
 
         // Perform Edge detection
-        Canny(m_frameGray, m_cannyOutput, 160, 160, 3);
+        Canny(m_frameGray, m_cannyOutput, 150, 150, 3);
         findContours(m_cannyOutput, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
         if (m_contours.size() == 0) {
             return;
@@ -228,7 +239,6 @@ void ofApp::update()
         int approx_size[2]{4, 8};
         int n = m_contours.size();
         vector<Point> approx;
-
         // find rectangle or square
         for (int a = 0; a < 2; a++) {
             for (int i = 0; i < n; i++) {
@@ -237,35 +247,25 @@ void ofApp::update()
                 if (approx.size() == approx_size[a]) {
                     Rect r = boundingRect(m_contours[i]);
                     // clang-format off
-                    //
-                     //   printf("Found %d\n ",i);
-                     //   m_rect_found.push_back(r);
 
                     if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width// &&
-                //        r.height <= r.width && r.width >= r.height
+                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width //&&
+                       // r.height <= r.width && r.width >= r.height
                         ) {
 
-                       // pusch the rectangle
                         m_rect_found.push_back(r);
-
                     }
 
                     // clang-format on
                 }
             }
         }
+        //        isSet = true;
 
-        bool m_accurate = false;
-        n = m_rect_found.size();
-        if (n > 0) {
+        // sort asc and process image
+        if (m_rect_found.size()) {
             std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
-            for (int i = 0; i < n; i++) {
-                Rect r = m_rect_found[i];
-
-                // start ocr detection
-                this->ocr_detection(r);
-            }
+            img_processor();
         }
     }
 }
@@ -292,7 +292,16 @@ void ofApp::draw()
         default:
             break;
     }
-
+    // ofNoFill();
+    // ofSetLineWidth(2);
+    // int n = m_rect_found.size();
+    // for (int i = 0; i < n; i++) {
+    // Rect r = m_rect_found[i];
+    //// ofSetColor(ofColor::white);
+    // ofSetColor(yellowPrint);
+    // ofDrawRectangle(r.x, r.y, r.width, r.height);
+    //}
+    //#ifdef AAAAA
     ofNoFill();
     ofSetLineWidth(2);
     ofSetColor(ofColor::white);
@@ -337,12 +346,12 @@ void ofApp::draw()
     ofPushStyle();
 
     int n = m_rect_found.size();
+    ofNoFill();
+    ofSetLineWidth(2);
+    ofSetColor(yellowPrint);
     for (int i = 0; i < n; i++) {
         Rect r = m_rect_found[i];
-        ofNoFill();
-        ofSetLineWidth(2);
         // ofSetColor(ofColor::white);
-        ofSetColor(yellowPrint);
         ofDrawRectangle(r.x, r.y, r.width, r.height);
         /*
                 char lbl_rectbuf[128];
@@ -361,6 +370,7 @@ void ofApp::draw()
         m_ocr.draw(0, 610);
         m_font.drawString(m_plate_number, 400, 680);
     }
+    //#endif
 }
 
 void ofApp::updateMask()
@@ -407,7 +417,7 @@ bool ofApp::compare_entry(const Rect& e1, const Rect& e2)
 {
     // bool myfunction (my_data i, my_data j) { return ( i.data_one < j.data_one); }
 
-    return e1.width < e2.width;
+    return e1.y > e2.y;
 
     //  return e1.width != e2.width ? e1.width < e2.width : e1.height < e2.height;
     //    if (e1.width != e2.width) return (e1.width < e2.width);
@@ -452,6 +462,75 @@ void ofApp::remove_consumer(std::thread::id id)
     }
 }
 
+bool ofApp::is_duplicate(Rect rect)
+{
+    for (auto r : m_rect_duplicates) {
+        if (r.y == rect.y && r.x == rect.x && r.width == rect.width && r.height == rect.height) {
+            return true;
+        }
+    }
+
+    m_rect_duplicates.push_back(rect);
+    return false;
+}
+
+void ofApp::img_processor()
+{
+    if (!m_plate_number.empty()) {
+        return;
+    }
+
+    auto n = m_rect_found.size();
+    if (!n) return;
+
+    for (int i = 0; i < n; i++) {
+        Rect rect = m_rect_found[i];
+
+        if (is_duplicate(rect)) {
+            continue;
+        }
+
+        m_ocr.setFromPixels(m_grayImage.getPixels());
+        m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
+
+        m_ocr.resize(m_ocr.getWidth() + 8, m_ocr.getHeight() + 8);
+        m_ocr.update();
+
+        string filename = "ocr_image_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+        m_ocr.save(filename);
+        printf(" %d %d %d %d\n", rect.x, rect.y, rect.width, rect.height);
+
+        // start ocr detection
+        if (ofApp::process_tesseract()) break;
+        /*
+                if (producers.size() < 1000)
+                    producers.push_back(std::thread([&, thread_counter]() {
+                        std::thread::id id = std::this_thread::get_id();
+                        std::lock_guard<std::mutex> lock(tmutex);
+                        ts_queue.push(id);
+
+                        //        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        //        string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+                        //      m_ocr.save(filename);
+                    }));
+                    */
+    }
+    /*
+        if (thread_counter < max_consumers)
+            // Create consumers.
+            consumers.push_back(std::thread([&, thread_counter]() {
+                std::thread::id id;
+                while (true) {
+                    ts_queue.pop(id);
+                    if (ofApp::process_tesseract()) break;
+                    remove_producer(id);
+                }
+            }));
+
+        thread_counter++;
+        */
+}
+
 void ofApp::ocr_detection(Rect rect)
 {
     if (!m_plate_number.empty()) {
@@ -486,6 +565,9 @@ void ofApp::ocr_detection(Rect rect)
     // resize
     m_ocr.resize(m_ocr.getWidth() + 8, m_ocr.getHeight() + 8);
     m_ocr.update();
+    string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+    m_ocr.save(filename);
+
     /*
         uint64_t currentMillis = ofGetElapsedTimeMillis();
         if ((int)(currentMillis - previousMillis) >= 100) {
@@ -493,15 +575,19 @@ void ofApp::ocr_detection(Rect rect)
         }
         */
 
+    ofApp::process_tesseract();
+    return;
+
     // Create producers.
     if (producers.size() < 1000)
         producers.push_back(std::thread([&, thread_counter]() {
             std::thread::id id = std::this_thread::get_id();
             std::lock_guard<std::mutex> lock(tmutex);
             ts_queue.push(id);
-            // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            // string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-            // m_ocr.save(filename);
+
+            //        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            //        string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
+            //      m_ocr.save(filename);
         }));
 
     if (thread_counter < max_consumers)
@@ -560,8 +646,13 @@ const int m_increment = 8;
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key)
 {
+    if (key == 'q') {
+        terminate();
+        return;
+    }
     if (key == 'c') {
         m_plate_number = {};
+        m_rect_duplicates.clear();
         m_search_time = 0;
         return;
     }
@@ -584,6 +675,7 @@ void ofApp::keyPressed(int key)
     }
 
     if (key == '2') {
+        isSet = false;
         m_search_time = 0;
         m_plate_number = "";
         m_viewMode = 2;
