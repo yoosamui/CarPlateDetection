@@ -44,6 +44,8 @@ class ofApp : public ofBaseApp
     static bool is_ocr_detection_found(const string& text);
     static bool process_tesseract();
 
+    static bool process_tesseractX(int id);
+
     static bool compare_entry(const Rect& e1, const Rect& e2);
     static void remove_producer(std::thread::id id);
     static void remove_consumer(std::thread::id id);
