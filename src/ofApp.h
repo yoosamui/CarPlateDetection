@@ -93,4 +93,5 @@ class ofApp : public ofBaseApp
     static std::queue<ofImage> m_ocrQueue;
 
     int m_search_time = 0;
+    int m_lighten_value = 0;
 };

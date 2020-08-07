@@ -235,8 +235,8 @@ void ofApp::update()
         Size size(CAM_WIDTH, CAM_HEIGHT);
         resize(m_frame, frame_resized, size);  // resize image
         // resize(m_frame, m_maskOutput, size);  // resize image
-        Mat lightenMat;
-        lightenMat = frame_resized + cv::Scalar(15, 15, 15);
+        //  Mat lightenMat;
+        lightenMat = frame_resized + cv::Scalar(m_lighten_value, m_lighten_value, m_lighten_value);
 
         //#e    ndif
         // printf("%d\n", m_mask_rect.height);
@@ -245,8 +245,8 @@ void ofApp::update()
         //#ifndef IP_CAM
         // m_frame.copyTo(m_maskOutput, m_mask);
         //        m_maskOutput.copyTo(masked, m_mask);//works
-        frame_resized.copyTo(m_maskOutput, m_mask);  // works
-        // lightenMat.copyTo(m_maskOutput, m_mask);  // not works
+        // frame_resized.copyTo(m_maskOutput, m_mask);  // works
+        lightenMat.copyTo(m_maskOutput, m_mask);  // not works
 
         //   m_maskOutput.copyTo(m_mask);
         //#endif
@@ -389,7 +389,7 @@ void ofApp::draw()
     sprintf(lbl_rectbuf, "%d:%d:%d", ofGetHours(), ofGetMinutes(), ofGetSeconds());
     ofDrawBitmapStringHighlight(lbl_rectbuf, 280, 12);
 
-    sprintf(lbl_rectbuf, "%d secs. rect found %d", m_search_time, m_rect_found.size());
+    sprintf(lbl_rectbuf, "%d secs. lighten_value: %d", m_search_time, m_lighten_value);
 
     ofDrawBitmapStringHighlight(lbl_rectbuf, 380, 12);
 
@@ -722,7 +722,11 @@ void ofApp::keyPressed(int key)
     }
 
     if (key == '+') {
-        max_consumers++;
+        m_lighten_value++;
+        return;
+    }
+    if (key == '-') {
+        m_lighten_value--;
         return;
     }
 
