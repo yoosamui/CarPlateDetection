@@ -65,14 +65,15 @@ void ofApp::setup()
     int centerY = (CAM_HEIGHT / 2) - h / 2;
 
     m_mask_rect = Rect(centerX, centerY, w, h);
+    m_mask_rect = Rect(0, 0, CAM_WIDTH, CAM_HEIGHT);
 
     h = 100;
-    w = 200;
+    w = 100;
     centerX = (m_mask_rect.width / 2);  //- (w / 2);
     centerY = ((m_mask_rect.height / 2) + h / 2);
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
-    m_plate_size_min = Rect(centerX, centerY, 20, 20);
+    m_plate_size_min = Rect(centerX, centerY, 10, 10);
 
     m_platedb.push_back(200);
 
@@ -191,7 +192,7 @@ bool ofApp::process_tesseract()
         Mat img;
         img = toCv(m_ocr);
 
-        string text = ocrp->run(img, 40, cv::text::OCR_LEVEL_TEXTLINE);
+        string text = ocrp->run(img, 80, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
         // printf("---------->%s %s\n", text.c_str(), pnumber.c_str());
 
@@ -273,13 +274,22 @@ void ofApp::update()
             }
         }
 
-        if (m_search_time > 30) {
+        if (m_search_time >= 30) {
             m_plate_number = "not found.";
             m_rect_duplicates.clear();
         }
 
-        // Perform Edge detection
-        Canny(m_frameGray, m_cannyOutput, 150, 150, 3);
+        // Noise Reduction Since edge detection is susceptible to noise in the image, first step is
+        // to remove the noise in the image with a 5x5 Gaussian filter
+        //  blur(m_frameGray, 3);
+        // dilate(m_frameGray);
+
+        // Perform Canny Edge Detection.
+        //
+        // Canny(m_frameGray, m_cannyOutput, 160, 160, 3);
+        Canny(m_frameGray, m_cannyOutput, 200, 50,
+              3);  // Apperture size 3-7
+
         findContours(m_cannyOutput, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
         if (m_contours.size() == 0) {
             return;
@@ -298,8 +308,8 @@ void ofApp::update()
                     // clang-format off
 
                     if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width //&&
-                       // r.height <= r.width && r.width >= r.height
+                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
+                        r.height <= r.width && r.width >= r.height
                         ) {
 
                         m_rect_found.push_back(r);
@@ -309,12 +319,12 @@ void ofApp::update()
                 }
             }
         }
-        //    isSet = true;
+        isSet = true;
 
         // sort asc and process image
         if (m_rect_found.size()) {
             std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
-            img_processor();
+            //  img_processor();
         }
     }
 }
@@ -353,14 +363,16 @@ void ofApp::draw()
     //}
     //#ifdef AAAAA
     ofNoFill();
-    ofSetLineWidth(2);
+    ofSetLineWidth(1.5);
     ofSetColor(ofColor::white);
     ofDrawRectangle(m_mask_rect.x, m_mask_rect.y, m_mask_rect.width, m_mask_rect.height);
 
     // show the plate size
     ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
                     m_plate_size_max.height);
+
     char lbl_rectbuf[512];
+    /*
     sprintf(lbl_rectbuf, "%d %d  %d %d", m_plate_size_max.x, m_plate_size_max.y,
             m_plate_size_max.width, m_plate_size_max.height);
     ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_max.x, m_plate_size_max.y);
@@ -370,6 +382,7 @@ void ofApp::draw()
     sprintf(lbl_rectbuf, "%d %d  %d %d", m_plate_size_min.x, m_plate_size_min.y,
             m_plate_size_min.width, m_plate_size_min.height);
     ofDrawBitmapStringHighlight(lbl_rectbuf, m_plate_size_min.x, m_plate_size_min.y);
+    */
 
     // show mode
     sprintf(lbl_rectbuf, "mode: %d", m_viewMode);
@@ -537,7 +550,7 @@ void ofApp::img_processor()
         Rect rect = m_rect_found[i];
 
         if (is_duplicate(rect)) {
-            //    continue;
+            continue;
         }
 
         m_ocr.setFromPixels(m_grayImage.getPixels());
@@ -547,7 +560,7 @@ void ofApp::img_processor()
         m_ocr.update();
 
         string filename = "ocr_image_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
-        m_ocr.save(filename);
+        //    m_ocr.save(filename);
         printf(" %d \n", i);
 
         // start ocr detection
