@@ -23,6 +23,8 @@ Mat masked;
 
 unsigned long previousMillis = 0;
 
+int blur_value = 2;
+
 ofImage ofApp::m_ocr;
 vector<int> ofApp::m_platedb;
 string ofApp::m_plate_number;
@@ -194,14 +196,14 @@ bool ofApp::process_tesseract()
 
         string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        //  printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
 
         ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
         text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        // printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
     }
@@ -281,8 +283,7 @@ void ofApp::update()
 
         // Noise Reduction Since edge detection is susceptible to noise in the image, first step is
         // to remove the noise in the image with a 5x5 Gaussian filter
-        blur(m_frameGray, 1);
-        //  dilate(m_frameGray);
+        blur(m_frameGray, blur_value);
 
         // Perform Canny Edge Detection.
         //
@@ -290,6 +291,7 @@ void ofApp::update()
         Canny(m_frameGray, m_cannyOutput, 200, 50,
               3);  // Apperture size 3-7
 
+        dilate(m_cannyOutput, 0.5);
         findContours(m_cannyOutput, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
         if (m_contours.size() == 0) {
             return;
@@ -305,6 +307,9 @@ void ofApp::update()
                              true);
                 if (approx.size() == approx_size[a]) {
                     Rect r = boundingRect(m_contours[i]);
+                    if (is_duplicate(r)) {
+                        // continue;
+                    }
                     // clang-format off
 
                     if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
@@ -319,13 +324,15 @@ void ofApp::update()
                 }
             }
         }
-        //    isSet = true;
+        isSet = true;
 
         // sort asc and process image
         if (m_rect_found.size()) {
             std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
             img_processor();
+            printf(".");
         }
+        printf(".\n");
     }
 }
 
@@ -363,7 +370,7 @@ void ofApp::draw()
     //}
     //#ifdef AAAAA
     ofNoFill();
-    ofSetLineWidth(1.5);
+    ofSetLineWidth(1);
     ofSetColor(ofColor::white);
     ofDrawRectangle(m_mask_rect.x, m_mask_rect.y, m_mask_rect.width, m_mask_rect.height);
 
@@ -402,7 +409,8 @@ void ofApp::draw()
     sprintf(lbl_rectbuf, "%d:%d:%d", ofGetHours(), ofGetMinutes(), ofGetSeconds());
     ofDrawBitmapStringHighlight(lbl_rectbuf, 280, 12);
 
-    sprintf(lbl_rectbuf, "%d secs. lighten_value: %d", m_search_time, m_lighten_value);
+    sprintf(lbl_rectbuf, "%d secs. lighten_value: %d blur %d", m_search_time, m_lighten_value,
+            blur_value);
 
     ofDrawBitmapStringHighlight(lbl_rectbuf, 380, 12);
 
@@ -549,19 +557,15 @@ void ofApp::img_processor()
     for (int i = 0; i < n; i++) {
         Rect rect = m_rect_found[i];
 
-        if (is_duplicate(rect)) {
-            //  continue;
-        }
-
         m_ocr.setFromPixels(m_grayImage.getPixels());
         m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
         m_ocr.resize(m_ocr.getWidth() + 4, m_ocr.getHeight() + 4);
         m_ocr.update();
 
-        string filename = "ocr_image_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+        // string filename = "ocr_image_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
         // m_ocr.save(filename);
-        //  printf(" %d \n", i);
+        printf("-> %d \n", i);
 
         // start ocr detection
         if (ofApp::process_tesseract()) break;
@@ -722,6 +726,27 @@ void ofApp::keyPressed(int key)
         terminate();
         return;
     }
+
+    if (key == OF_KEY_F1) {
+        blur_value = 1;
+        return;
+    }
+
+    if (key == OF_KEY_F2) {
+        blur_value = 2;
+        return;
+    }
+
+    if (key == OF_KEY_F3) {
+        blur_value = 3;
+        return;
+    }
+
+    if (key == OF_KEY_F4) {
+        blur_value = 4;
+        return;
+    }
+
     if (key == 'c') {
         m_plate_number = {};
         m_rect_duplicates.clear();
