@@ -352,13 +352,16 @@ void ofApp::draw()
         m_font.drawString(message, 50, RESOLUTION_HEIGHT + 24);
 
         // ofPopStyle();
-    }
-    // else if (m_start_processing) {
-    // string message("Scanning...");
-    // if (m_frameNumber % 6) message = {};
+    } else {
+        if (m_start_processing) {
+            string message("Scanning...");
+            if (m_frameNumber % 6) message = {};
 
-    // m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
-    //}
+            m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
+        } else {
+            m_font.drawString("No match found", 2, RESOLUTION_HEIGHT + 24);
+        }
+    }
 
 #ifdef AAAA
     switch (m_viewMode) {
