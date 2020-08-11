@@ -20,6 +20,8 @@ const int CANNY_KERNELSIZE = 3;
 const int SEARCH_TIMEOUT = 30;
 
 bool ofApp::m_start_processing;
+bool ofApp::m_found;
+
 Mat masked;
 
 // work best without preprocessing
@@ -51,6 +53,7 @@ void ofApp::setup()
 {
     // initialize static members
     m_start_processing = false;
+    m_found = false;
 
     // set of options
     ofSetVerticalSync(true);
@@ -79,12 +82,12 @@ void ofApp::setup()
     m_mask_rect = Rect(centerX, centerY, w, h);
 
     h = 100;
-    w = 100;
+    w = 120;
     centerX = (m_mask_rect.width / 2);
     centerY = ((m_mask_rect.height / 2) + h / 2);
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
-    m_plate_size_min = Rect(centerX, centerY, 10, 10);
+    m_plate_size_min = Rect(centerX, centerY, 30, 30);
 
     this->updateMask();
 
@@ -114,6 +117,7 @@ bool ofApp::is_ocr_detection_found(const string& text)
             printf("-----FOUND\n");
             m_rect_duplicates.clear();
             m_start_processing = false;
+            m_found = true;
             return true;
         }
     } catch (const std::invalid_argument& ia) {
@@ -218,12 +222,14 @@ void ofApp::update()
     // between 2:1 and 3:1.
     Canny(m_mask_image, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
           CANNY_KERNELSIZE);
+
     if (!m_start_processing) return;
 
     if (isSet) return;
     if (m_search_time >= SEARCH_TIMEOUT) {
-        m_plate_number = "not found.";
+        m_plate_number = {};
         m_start_processing = false;
+        m_found = false;
         return;
     }
 
@@ -245,8 +251,8 @@ void ofApp::update()
     vector<Point> approx;
 
     // debug
-    printf("Contours size: %d\n", m_result);
-    int counter = 0;
+    // printf("Contours size: %d\n", m_result);
+    // int counter = 0;
 
     // find rectangle or square
     for (int a = 0; a < 2; a++) {
@@ -262,12 +268,12 @@ void ofApp::update()
 
                     if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
                         r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width// &&
-                     //   r.height <= r.width && r.width >= r.height
+ //                       r.height <= r.width && r.width >= r.height
                         ) {
 
                         m_rect_found.push_back(r);
-                        printf("[%2d] %d %d %d %d\n",counter,r.y, r.x,r.width,r.height );
-                        counter++;
+                    //    printf("[%2d] %d %d %d %d\n",counter,r.y, r.x,r.width,r.height );
+                   //     counter++;
                     }
 
                 // clang-format on
@@ -279,164 +285,6 @@ void ofApp::update()
         std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
         img_processor();
     }
-
-    ////////////////////////////
-#ifdef AAAA
-
-    return;
-
-    if (m_isVideoMode) {
-        m_video.update();
-        m_frame = toCv(m_video);
-    } else {
-#ifdef IP_CAM
-        // m_frame = cam.grab();
-        capture.read(m_frame);
-#else
-        cam.update();
-        m_frame = toCv(cam);
-#endif
-    }
-
-    if (!m_frame.empty()) {
-        m_frameNumber++;
-
-        //#ifdef IP_CAM
-        // Mat frame_resized(CAM_WIDTH, CAM_HEIGHT, CV_8UC4);
-        Mat frame_resized;
-        Size size(CAM_WIDTH, CAM_HEIGHT);
-        resize(m_frame, frame_resized, size);  // resize image
-        // resize(m_frame, m_maskOutput, size);  // resize image
-        //  Mat lightenMat;
-        lightenMat = frame_resized + cv::Scalar(m_lighten_value, m_lighten_value, m_lighten_value);
-
-        //#e    ndif
-        // printf("%d\n", m_mask_rect.height);
-        // terminate();
-
-        //#ifndef IP_CAM
-        // m_frame.copyTo(m_maskOutput, m_mask);
-        //        m_maskOutput.copyTo(masked, m_mask);//works
-        // frame_resized.copyTo(m_maskOutput, m_mask);  // works
-        lightenMat.copyTo(m_maskOutput, m_mask);  // not works
-
-        //   m_maskOutput.copyTo(m_mask);
-        //#endif
-
-        ///////////////
-        /*
-        new_image = Mat::zeros(m_maskOutput.size(), m_maskOutput.type());
-        for (int y = 0; y < m_maskOutput.rows; y++) {
-            for (int x = 0; x < m_maskOutput.cols; x++) {
-                for (int c = 0; c < m_maskOutput.channels(); c++) {
-                    new_image.at<Vec3b>(y, x)[c] =
-                        saturate_cast<uchar>(60 * m_maskOutput.at<Vec3b>(y, x)[c] + 4);
-                }
-            }
-        }
-
-        new_image.copyTo(m_maskOutput);
-        */
-        ////
-
-        convertColor(m_maskOutput, m_frameGray, CV_RGB2GRAY);
-        // convertColor(resized_frame, m_frameGray, CV_RGB2GRAY);
-
-        ofImage gray;
-        toOf(m_frameGray, gray);
-
-        m_grayImage.setFromPixels(gray.getPixels());
-
-        //////////////
-
-        if (isSet) return;
-        m_rect_found.clear();
-
-        if (!m_plate_number.empty()) {
-            //    m_ocr.clear();
-
-            return;
-        } else {
-            uint64_t currentMillis = ofGetElapsedTimeMillis();
-            if ((int)(currentMillis - previousMillis) >= 1000) {
-                m_search_time++;
-                previousMillis = currentMillis;
-            }
-        }
-
-        if (m_search_time >= 30) {
-            m_plate_number = "not found.";
-            m_rect_duplicates.clear();
-        }
-
-        // Noise Reduction Since edge detection is susceptible to noise in the image, first step is
-        // to remove the noise in the image with a 5x5 Gaussian filter
-
-        // GaussianBlur(m_frameGray, m_frameGray, Size(m_blur_value, blur_value), 0);
-        //        blur(m_frameGray, m_blur_value);
-        //
-        /// Reduce noise with a kernel 3x3
-        blur(m_frameGray, m_frameGray, Size(m_blur_value, blur_value));
-
-        //        cv::threshold(m_frameGray, m_frameGray, 100, 90, THRESH_BINARY);
-        // Perform Canny Edge Detection.
-        //
-        Canny(m_frameGray, m_cannyOutput, 100, 300, 3);
-
-        /// Canny detector
-        // Canny( detected_edges, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size );
-
-        // Canny(m_frameGray, m_cannyOutput, 200, 50,  3);  // Apperture size 3-7
-
-        // dilate(m_cannyOutput, 0.8);
-        findContours(m_cannyOutput, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
-        if (m_contours.size() == 0) {
-            //    return;
-        }
-
-        int approx_size[2]{4, 8};
-        int n = m_contours.size();
-        vector<Point> approx;
-        printf("Contours size: %d\n", n);
-        int counter = 0;
-        // find rectangle or square
-        for (int a = 0; a < 2; a++) {
-            for (int i = 0; i < n; i++) {
-                approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.01,
-                             true);
-                if (approx.size() == approx_size[a]) {
-                    Rect r = boundingRect(m_contours[i]);
-                    if (is_duplicate(r)) {
-                        continue;
-                    }
-                    // clang-format off
-
-                    if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
-                        r.height <= r.width && r.width >= r.height
-                        ) {
-
-                        m_rect_found.push_back(r);
-                        printf("[%2d] %d %d %d %d\n",counter,r.y, r.x,r.width,r.height );
-                        counter++;
-                    }
-
-                    // clang-format on
-                }
-            }
-        }
-        //  isSet = true;
-
-        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        // sort asc and process image
-        if (m_rect_found.size()) {
-            std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
-            img_processor();
-        }
-        printf(".\n");
-    }
-#endif
 }
 
 //--------------------------------------------------------------
@@ -444,7 +292,6 @@ void ofApp::draw()
 {
     ofBackground(ofColor::black);
 
-    drawMat(m_gray, 0, 0);
     switch (m_view_mode) {
         case 1:
             drawMat(m_gray, 0, 0);
@@ -467,27 +314,12 @@ void ofApp::draw()
     // show mode
     char buffer[512];
     sprintf(buffer,
-            "               Time: %.2d:%.2d:%.2d ViewMode: %d Gaussian: %d SearchTime: "
+            "Time: %.2d:%.2d:%.2d ViewMode: %d Gaussian: %d SearchTime: "
             "%2d Duplicates: %3d",
             ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value, m_search_time,
             (int)m_rect_duplicates.size());
 
-    ofDrawBitmapString(buffer, 1, RESOLUTION_HEIGHT + 18);
-
-    /*
-        // Draw duplicates rectangle
-        m_result = m_rect_duplicates.size();
-        if (m_result) {
-            ofPushStyle();
-            ofSetLineWidth(4.5);
-            for (int i = 0; i < m_result; i++) {
-                Rect r = m_rect_found[i];
-                ofDrawRectangle(r.x, r.y, r.width, r.height);
-            }
-
-            ofPopStyle();
-        }
-    */
+    ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 18);
 
     // Draw scann rectangle
     m_result = m_rect_found.size();
@@ -507,40 +339,26 @@ void ofApp::draw()
     ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
                     m_plate_size_max.height);
     // Show the result if something found
-    if (!m_plate_number.empty() && m_ocr.getPixels().size() > 1) {
+    if (m_found && !m_plate_number.empty()) {
         //   m_ocr.draw(0, 610);
 
-        ofPushStyle();
+        //   ofPushStyle();
 
-        // int rect_width = 600;
-        // int rect_height = 150;
-        // int rect_centerX = (RESOLUTION_WIDTH / 2) - rect_width / 2;
-        // int rect_centerY = (RESOLUTION_HEIGHT / 2) - rect_height / 2;
-
-        // ofFill();
-        // ofSetColor(ofColor::green);
-        // ofDrawRectangle(rect_centerX, rect_centerY, rect_width, rect_height);
-
-        // ofNoFill();
-        // ofSetLineWidth(4);
-        // ofSetColor(ofColor::white);
-        // ofDrawRectangle(rect_centerX, rect_centerY, rect_width, rect_height);
-
-        // int font_centerX = rect_centerX + ((64 / 2) * m_plate_number.length());
-        // cout << to_string((64 / 2) * m_plate_number.length()) << "\n";
-        ////        m_plate_number = to_string(m_plate_number.length());
-        //// m_plate_number = to_string(m_font.getLetterSpacing() * m_plate_number.length());
-
-        //// m_plate_number = to_string(((m_font.getLetterSpacing()) * m_plate_number.length()) /
-        ////                                 2);  // - rect_width / 2);
         // ofSetColor(ofColor::black);
-        string message(m_plate_number + " Match");
+        string message("Match found");
         if (m_frameNumber % 6) message = {};
 
-        m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
+        m_font.drawString(m_plate_number, 2, RESOLUTION_HEIGHT + 24);
+        m_font.drawString(message, 50, RESOLUTION_HEIGHT + 24);
 
-        ofPopStyle();
+        // ofPopStyle();
     }
+    // else if (m_start_processing) {
+    // string message("Scanning...");
+    // if (m_frameNumber % 6) message = {};
+
+    // m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
+    //}
 
 #ifdef AAAA
     switch (m_viewMode) {
@@ -898,11 +716,12 @@ void ofApp::keyPressed(int key)
     }
 
     if (key == 's') {
-        m_start_processing = !m_start_processing;
+        m_start_processing = true;
         m_plate_number = {};
         m_rect_duplicates.clear();
         m_ocrMap.clear();
         m_search_time = 0;
+        m_found = false;
         isSet = false;
         return;
     }

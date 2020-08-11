@@ -77,6 +77,7 @@ class ofApp : public ofBaseApp
     vector<vector<Point>> m_contours;
     bool is_duplicate(Rect rect);
     static bool m_start_processing;
+    static bool m_found;
     /////////////////////
 
 #ifdef PI_CAM
