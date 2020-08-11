@@ -47,7 +47,7 @@ std::mutex tmutex;
 cv::VideoCapture capture("rtsp://admin:admin@192.168.1.88:554/11",
                          cv::CAP_ANY);  // 0 = autodetect default API
 #endif
-
+float framerateMult;
 //--------------------------------------------------------------
 void ofApp::setup()
 {
@@ -57,7 +57,9 @@ void ofApp::setup()
 
     // set of options
     ofSetVerticalSync(true);
-    ofSetWindowTitle("Licence plate recognition v1.0");
+    framerateMult = 1.0f;
+    ofSetFrameRate(60);
+    ofSetWindowTitle("Licence plate recognition v4.0");
 
     // needed for tesseract
     setlocale(LC_ALL, "C");
@@ -194,6 +196,18 @@ static bool isSet = false;
 //--------------------------------------------------------------
 void ofApp::update()
 {
+    framerateMult =
+        60.0f / (1.0f / ofGetLastFrameTime());  // changed as per Arturo correction..thanks
+
+    if (ofGetElapsedTimef() < 10.0f)
+        ofSetFrameRate(120);
+    else if (ofGetElapsedTimef() < 20.0f)
+        ofSetFrameRate(60);
+    else if (ofGetElapsedTimef() < 30.0f)
+        ofSetFrameRate(30);
+    else if (ofGetElapsedTimef() < 40.0f)
+        ofSetFrameRate(10);
+
     m_camera.get_object() >> m_frame;
     if (m_frame.empty()) return;
 
@@ -290,6 +304,50 @@ void ofApp::update()
 //--------------------------------------------------------------
 void ofApp::draw()
 {
+    /*
+     https://forum.openframeworks.cc/t/for-those-who-dont-know-about-framerate-a-little-demo/6443
+        int startLine = 30;
+        static float harePos = 0.0f;
+        static float tortoisePos = 0.0f;
+        float blightersSpeed = 0.3f;
+
+        string info = "fps: " + ofToString(ofGetFrameRate(), 2) +
+                      "\nframerateMult: " + ofToString(framerateMult, 2);
+        ofDrawBitmapString(info, 10, ofGetHeight() - 40);
+
+        // Draw the timeline
+
+        int littleStep = 10;
+        int bigStep = 100;
+
+        ofSetColor(255, 255, 255, 255);
+        for (int x = startLine; x < ofGetWidth() - 100; x += littleStep) {
+            if (x % bigStep == 0)
+                ofRect(x, ofGetHeight() / 2 - 20, 2, 80);
+            else
+                ofRect(x, ofGetHeight() / 2, 1, 40);
+        }
+
+        // Move the hare
+        harePos += blightersSpeed;
+        // Draw the hare
+        ofSetColor(128, 0, 0, 255);
+        ofRect(startLine + harePos, ofGetHeight() / 2 - 40, 20, 20);
+        info = "hare\nSpeed " + ofToString(blightersSpeed * ofGetFrameRate(), 2) + " km/h";
+        ofDrawBitmapString(info, startLine + harePos, ofGetHeight() / 2 - 70);
+
+        // Move the tortoise
+        tortoisePos += blightersSpeed * framerateMult;
+        // Draw the tortoise
+        ofSetColor(0, 0, 128, 255);
+        ofRect(startLine + tortoisePos, ofGetHeight() / 2 + 60, 20, 20);
+        info = "tortoise\nSpeed " + ofToString(blightersSpeed * framerateMult * ofGetFrameRate(), 2)
+     + " km/h"; ofDrawBitmapString(info, startLine + tortoisePos, ofGetHeight() / 2 + 100);
+
+        ofSetColor(255, 255, 255, 255);
+
+        return;
+    */
     ofBackground(ofColor::black);
 
     switch (m_view_mode) {
@@ -315,9 +373,9 @@ void ofApp::draw()
     char buffer[512];
     sprintf(buffer,
             "Time: %.2d:%.2d:%.2d ViewMode: %d Gaussian: %d SearchTime: "
-            "%2d Duplicates: %3d",
+            "%2d Duplicates: %3d FPS: %f",
             ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value, m_search_time,
-            (int)m_rect_duplicates.size());
+            (int)m_rect_duplicates.size(), ofGetFrameRate());
 
     ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 18);
 
@@ -345,8 +403,8 @@ void ofApp::draw()
         //   ofPushStyle();
 
         // ofSetColor(ofColor::black);
-        string message("Match found");
-        if (m_frameNumber % 6) message = {};
+        string message("Licence detected");
+        if (m_frameNumber % 4) message = {};
 
         m_font.drawString(m_plate_number, 2, RESOLUTION_HEIGHT + 24);
         m_font.drawString(message, 50, RESOLUTION_HEIGHT + 24);
@@ -354,10 +412,10 @@ void ofApp::draw()
         // ofPopStyle();
     } else {
         if (m_start_processing) {
-            string message("Scanning...");
-            if (m_frameNumber % 6) message = {};
+            //          string message("Scanning...");
+            //            if (m_frameNumber % 6) message = {};
 
-            m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
+            m_font.drawString("Processing...", 2, RESOLUTION_HEIGHT + 24);
         } else {
             m_font.drawString("License plate not found", 2, RESOLUTION_HEIGHT + 24);
         }
