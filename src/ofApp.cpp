@@ -278,19 +278,13 @@ void ofApp::update()
                 if (is_duplicate(r)) {
                     continue;
                 }
-                // clang-format off
 
-                    if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width// &&
- //                       r.height <= r.width && r.width >= r.height
-                        ) {
-
-                        m_rect_found.push_back(r);
+                if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
+                    r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width) {
+                    m_rect_found.push_back(r);
                     //    printf("[%2d] %d %d %d %d\n",counter,r.y, r.x,r.width,r.height );
-                   //     counter++;
-                    }
-
-                // clang-format on
+                    //     counter++;
+                }
             }
         }
     }
@@ -377,7 +371,7 @@ void ofApp::draw()
             ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value, m_search_time,
             (int)m_rect_duplicates.size(), ofGetFrameRate());
 
-    ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 18);
+    ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 20);
 
     // Draw scann rectangle
     m_result = m_rect_found.size();
@@ -396,11 +390,10 @@ void ofApp::draw()
     // show the plate size
     ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
                     m_plate_size_max.height);
+    ofPushStyle();
     // Show the result if something found
     if (m_found && !m_plate_number.empty()) {
         //   m_ocr.draw(0, 610);
-
-        //   ofPushStyle();
 
         // ofSetColor(ofColor::black);
         string message("Licence detected");
@@ -409,7 +402,6 @@ void ofApp::draw()
         m_font.drawString(m_plate_number, 2, RESOLUTION_HEIGHT + 24);
         m_font.drawString(message, 50, RESOLUTION_HEIGHT + 24);
 
-        // ofPopStyle();
     } else {
         if (m_start_processing) {
             //          string message("Scanning...");
@@ -417,10 +409,12 @@ void ofApp::draw()
 
             m_font.drawString("Processing...", 2, RESOLUTION_HEIGHT + 24);
         } else {
+            ofSetColor(ofColor::red);
             m_font.drawString("License plate not found", 2, RESOLUTION_HEIGHT + 24);
         }
     }
 
+    ofPopStyle();
 #ifdef AAAA
     switch (m_viewMode) {
         case 1:
