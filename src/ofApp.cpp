@@ -359,7 +359,7 @@ void ofApp::draw()
 
             m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
         } else {
-            m_font.drawString("No match found", 2, RESOLUTION_HEIGHT + 24);
+            m_font.drawString("License plate not found", 2, RESOLUTION_HEIGHT + 24);
         }
     }
 
