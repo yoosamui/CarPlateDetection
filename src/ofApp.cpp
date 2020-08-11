@@ -11,19 +11,19 @@
 #include <string>
 #include <vector>
 
-//#define CAM_WIDTH 320   // 640
-//#define CAM_HEIGHT 240  // 480
+const int RESOLUTION_WIDTH = 1024;
+const int RESOLUTION_HEIGHT = 768;
+const int OCR_IMAGE_RESIZE = 16;
+const int CANNY_LOWTHRESHOLD = 100;
+const int CANNY_RATIO = 3;
+const int CANNY_KERNELSIZE = 3;
+const int SEARCH_TIMEOUT = 30;
 
-#define CAM_WIDTH 640
-#define CAM_HEIGHT 480
+bool ofApp::m_start_processing;
 Mat masked;
 
 // work best without preprocessing
 //#define OCR_PROCESS_IMAGE 1
-
-unsigned long previousMillis = 0;
-
-int blur_value = 3;
 
 ofImage ofApp::m_ocr;
 vector<int> ofApp::m_platedb;
@@ -49,79 +49,54 @@ cv::VideoCapture capture("rtsp://admin:admin@192.168.1.88:554/11",
 //--------------------------------------------------------------
 void ofApp::setup()
 {
-    thread_counter = 0;
+    // initialize static members
+    m_start_processing = false;
 
+    // set of options
     ofSetVerticalSync(true);
-    ofSetWindowTitle("Number recognition v1.0");
+    ofSetWindowTitle("Licence plate recognition v1.0");
 
     // needed for tesseract
     setlocale(LC_ALL, "C");
     setlocale(LC_CTYPE, "C");
     setlocale(LC_NUMERIC, "C");
 
-    m_plate_number = "0";
+    cout << "Start Cammera stream connection...\n";
 
-    int h = 300;
-    int w = 450;
-    int centerX = (CAM_WIDTH / 2) - w / 2;
-    int centerY = (CAM_HEIGHT / 2) - h / 2;
+    // connect to the cammera;
+    if (!m_camera.connect("rtsp://admin:admin@192.168.1.88:554/11")) {
+        terminate();
+    }
+
+    cout << "Cammera stream connected\n";
+
+    // define default mask size
+    int h = RESOLUTION_HEIGHT - 300;
+    int w = RESOLUTION_WIDTH - 64;
+    int centerX = (RESOLUTION_WIDTH / 2) - w / 2;
+    int centerY = (RESOLUTION_HEIGHT / 2) - h / 2;
 
     m_mask_rect = Rect(centerX, centerY, w, h);
-    m_mask_rect = Rect(0, 0, CAM_WIDTH, CAM_HEIGHT);
 
     h = 100;
     w = 100;
-    centerX = (m_mask_rect.width / 2);  //- (w / 2);
+    centerX = (m_mask_rect.width / 2);
     centerY = ((m_mask_rect.height / 2) + h / 2);
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
     m_plate_size_min = Rect(centerX, centerY, 10, 10);
 
-    m_platedb.push_back(200);
+    this->updateMask();
 
-    m_platedb.push_back(1402);
-    m_platedb.push_back(396);
-    m_platedb.push_back(96);
-    m_platedb.push_back(356);
-    m_platedb.push_back(149);
-    m_platedb.push_back(357);
-    m_platedb.push_back(146);
+    m_font.load(OF_TTF_SANS, 16, true, true);
+
+    // holds the plate number for show it in the UI.
+    m_plate_number = "0";
+
+    // TODO:  valid plate database
     m_platedb.push_back(470);   // sup moto
     m_platedb.push_back(7095);  // ford sup
-    m_platedb.push_back(4349);
-    m_platedb.push_back(207);
-    m_platedb.push_back(9311);  // alex
-    m_platedb.push_back(7079);  // lars
-
-    m_platedb.push_back(3786);   // phone
-    m_platedb.push_back(93459);  // phone
-
-    // load default video
-    m_isVideoMode = m_video.load("videos/default.mov");
-
-    // ofxCvColorImage colorImg;
-    // colorImg.allocate(img.getWidth(), img.getHeight());
-    // colorImg.setFromPixels(img);
-
-    // m_grayBg.allocate(img.getWidth(), img.getHeight());
-    // m_grayBg = colorImg;
-
-    m_grayImage.allocate(CAM_WIDTH, CAM_HEIGHT);
-    m_grayDiff.allocate(CAM_WIDTH, CAM_HEIGHT);
-
-    m_font.load(OF_TTF_SANS, 64, true, true);
-    if (m_isVideoMode) {
-        //        video.setLoopState(OF_LOOP_NORMAL);
-        //        video.setSpeed(VIDEOPLAYSPEED);
-        m_video.play();
-    } else {
-#ifndef IP_CAM
-        // setup camera (w,h,color = true,gray = false);
-        cam.setup(CAM_WIDTH, CAM_HEIGHT, true);
-#endif
-    }
-
-    this->updateMask();
+    m_platedb.push_back(371);   // post man
 }
 
 bool ofApp::is_ocr_detection_found(const string& text)
@@ -138,6 +113,7 @@ bool ofApp::is_ocr_detection_found(const string& text)
             m_plate_number = to_string(pnumber);
             printf("-----FOUND\n");
             m_rect_duplicates.clear();
+            m_start_processing = false;
             return true;
         }
     } catch (const std::invalid_argument& ia) {
@@ -195,27 +171,120 @@ bool ofApp::process_tesseract()
 
         string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        //        printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
 
         ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
         text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        //      printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
     }
 
     return false;
 }
-int saturation = 1;
+
 static bool isSet = false;
-Mat lightenMat;
-Mat new_image;
 //--------------------------------------------------------------
 void ofApp::update()
 {
+    m_camera.get_object() >> m_frame;
+    if (m_frame.empty()) return;
+
+    m_frameNumber++;
+
+    Mat resolution_image;
+    Size size(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
+    resize(m_frame, resolution_image, size);
+
+    // start image process
+    resolution_image.copyTo(m_image);
+    cvtColor(m_image, m_gray, COLOR_BGR2GRAY);
+
+    // create mask image
+    m_gray.copyTo(m_mask_image, m_mask);
+
+    // Noise Reduction Since edge detection is susceptible to noise
+    // in the image, first step is to remove the noise with a Gaussian filter
+    blur(m_mask_image, m_mask_image, Size(m_blur_value, m_blur_value));
+
+    // Use the OpenCV function cv::Canny to implement the Canny Edge Detector.
+    // If a pixel gradient is higher than the upper threshold, the pixel is accepted as an edge
+    // If a pixel gradient value is below the lower threshold, then it is rejected.
+    // If the pixel gradient is between the two thresholds, then it will be accepted only if it is
+    // connected to a pixel that is above the upper threshold. Canny recommended a upper:lower ratio
+    // between 2:1 and 3:1.
+    Canny(m_mask_image, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
+          CANNY_KERNELSIZE);
+    if (!m_start_processing) return;
+
+    if (isSet) return;
+    if (m_search_time >= SEARCH_TIMEOUT) {
+        m_plate_number = "not found.";
+        m_start_processing = false;
+        return;
+    }
+
+    uint64_t currentMillis = ofGetElapsedTimeMillis();
+    if ((int)(currentMillis - previousMillis) >= 1000) {
+        m_search_time++;
+        previousMillis = currentMillis;
+    }
+
+    // Finds contours in the canny image.
+    findContours(m_canny_image, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+    m_result = m_contours.size();
+    if (!m_result) {
+        return;
+    }
+
+    m_rect_found.clear();
+    int approx_size[2]{4, 8};
+    vector<Point> approx;
+
+    // debug
+    printf("Contours size: %d\n", m_result);
+    int counter = 0;
+
+    // find rectangle or square
+    for (int a = 0; a < 2; a++) {
+        for (int i = 0; i < m_result; i++) {
+            approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.01,
+                         true);
+            if (approx.size() == approx_size[a]) {
+                Rect r = boundingRect(m_contours[i]);
+                if (is_duplicate(r)) {
+                    continue;
+                }
+                // clang-format off
+
+                    if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
+                        r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width// &&
+                     //   r.height <= r.width && r.width >= r.height
+                        ) {
+
+                        m_rect_found.push_back(r);
+                        printf("[%2d] %d %d %d %d\n",counter,r.y, r.x,r.width,r.height );
+                        counter++;
+                    }
+
+                // clang-format on
+            }
+        }
+    }
+    //  isSet = true;
+    if (m_rect_found.size()) {
+        std::sort(m_rect_found.begin(), m_rect_found.end(), ofApp::compare_entry);
+        img_processor();
+    }
+
+    ////////////////////////////
+#ifdef AAAA
+
+    return;
+
     if (m_isVideoMode) {
         m_video.update();
         m_frame = toCv(m_video);
@@ -303,11 +372,11 @@ void ofApp::update()
         // Noise Reduction Since edge detection is susceptible to noise in the image, first step is
         // to remove the noise in the image with a 5x5 Gaussian filter
 
-        // GaussianBlur(m_frameGray, m_frameGray, Size(blur_value, blur_value), 0);
-        //        blur(m_frameGray, blur_value);
+        // GaussianBlur(m_frameGray, m_frameGray, Size(m_blur_value, blur_value), 0);
+        //        blur(m_frameGray, m_blur_value);
         //
         /// Reduce noise with a kernel 3x3
-        blur(m_frameGray, m_frameGray, Size(blur_value, blur_value));
+        blur(m_frameGray, m_frameGray, Size(m_blur_value, blur_value));
 
         //        cv::threshold(m_frameGray, m_frameGray, 100, 90, THRESH_BINARY);
         // Perform Canny Edge Detection.
@@ -367,6 +436,7 @@ void ofApp::update()
         }
         printf(".\n");
     }
+#endif
 }
 
 //--------------------------------------------------------------
@@ -374,6 +444,105 @@ void ofApp::draw()
 {
     ofBackground(ofColor::black);
 
+    drawMat(m_gray, 0, 0);
+    switch (m_view_mode) {
+        case 1:
+            drawMat(m_gray, 0, 0);
+            break;
+        case 2:
+            drawMat(m_mask_image, 0, 0);
+            break;
+        case 3:
+            drawMat(m_canny_image, 0, 0);
+            break;
+    }
+
+    // show resolution and mask
+    ofNoFill();
+    ofSetLineWidth(1.5);
+    ofSetColor(ofColor::white);
+    ofDrawRectangle(0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
+    ofDrawRectangle(m_mask_rect.x, m_mask_rect.y, m_mask_rect.width, m_mask_rect.height);
+
+    // show mode
+    char buffer[512];
+    sprintf(buffer,
+            "               Time: %.2d:%.2d:%.2d ViewMode: %d Gaussian: %d SearchTime: "
+            "%2d Duplicates: %3d",
+            ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value, m_search_time,
+            (int)m_rect_duplicates.size());
+
+    ofDrawBitmapString(buffer, 1, RESOLUTION_HEIGHT + 18);
+
+    /*
+        // Draw duplicates rectangle
+        m_result = m_rect_duplicates.size();
+        if (m_result) {
+            ofPushStyle();
+            ofSetLineWidth(4.5);
+            for (int i = 0; i < m_result; i++) {
+                Rect r = m_rect_found[i];
+                ofDrawRectangle(r.x, r.y, r.width, r.height);
+            }
+
+            ofPopStyle();
+        }
+    */
+
+    // Draw scann rectangle
+    m_result = m_rect_found.size();
+    if (m_result) {
+        ofPushStyle();
+        ofSetLineWidth(1.5);
+        ofSetColor(yellowPrint);
+        for (int i = 0; i < m_result; i++) {
+            Rect r = m_rect_found[i];
+            ofDrawRectangle(r.x, r.y, r.width, r.height);
+        }
+
+        ofPopStyle();
+    }
+
+    // show the plate size
+    ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
+                    m_plate_size_max.height);
+    // Show the result if something found
+    if (!m_plate_number.empty() && m_ocr.getPixels().size() > 1) {
+        //   m_ocr.draw(0, 610);
+
+        ofPushStyle();
+
+        // int rect_width = 600;
+        // int rect_height = 150;
+        // int rect_centerX = (RESOLUTION_WIDTH / 2) - rect_width / 2;
+        // int rect_centerY = (RESOLUTION_HEIGHT / 2) - rect_height / 2;
+
+        // ofFill();
+        // ofSetColor(ofColor::green);
+        // ofDrawRectangle(rect_centerX, rect_centerY, rect_width, rect_height);
+
+        // ofNoFill();
+        // ofSetLineWidth(4);
+        // ofSetColor(ofColor::white);
+        // ofDrawRectangle(rect_centerX, rect_centerY, rect_width, rect_height);
+
+        // int font_centerX = rect_centerX + ((64 / 2) * m_plate_number.length());
+        // cout << to_string((64 / 2) * m_plate_number.length()) << "\n";
+        ////        m_plate_number = to_string(m_plate_number.length());
+        //// m_plate_number = to_string(m_font.getLetterSpacing() * m_plate_number.length());
+
+        //// m_plate_number = to_string(((m_font.getLetterSpacing()) * m_plate_number.length()) /
+        ////                                 2);  // - rect_width / 2);
+        // ofSetColor(ofColor::black);
+        string message(m_plate_number + " Match");
+        if (m_frameNumber % 6) message = {};
+
+        m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
+
+        ofPopStyle();
+    }
+
+#ifdef AAAA
     switch (m_viewMode) {
         case 1:
             drawMat(m_frame, 0, 0);
@@ -446,7 +615,7 @@ void ofApp::draw()
     ofDrawBitmapStringHighlight(lbl_rectbuf, 280, 12);
 
     sprintf(lbl_rectbuf, "%d secs. lighten_value: %d blur %d saturat: %d", m_search_time,
-            m_lighten_value, blur_value, saturation);
+            m_lighten_value, m_blur_value, saturation);
 
     ofDrawBitmapStringHighlight(lbl_rectbuf, 380, 12);
 
@@ -466,10 +635,15 @@ void ofApp::draw()
     ofPopStyle();
 
     if (!m_plate_number.empty() && m_ocr.getPixels().size() > 1) {
-        m_ocr.draw(0, 610);
-        m_font.drawString(m_plate_number, 400, 680);
+        //        m_ocr.draw(0, 610);
+
+        int h = 100;
+        int w = 64 * m_plate_number.length();
+        int centerX = (RESOLUTION_WIDTH / 2) - w / 2;
+        int centerY = (RESOLUTION_HEIGHT / 2) - h / 2;
+        m_font.drawStringHighlight(m_plate_number, centerX, centerY);
     }
-    //#endif
+#endif
 }
 
 void ofApp::updateMask()
@@ -477,7 +651,7 @@ void ofApp::updateMask()
     // clang-format off
 
     m_maskPoints.clear();
-    m_maskOutput.release();
+    m_mask_image.release();
 
     m_maskPoints.push_back(cv::Point(m_mask_rect.x, m_mask_rect.y));
     m_maskPoints.push_back(cv::Point(m_mask_rect.x + m_mask_rect.width, m_mask_rect.y));
@@ -494,13 +668,13 @@ void ofApp::createMask()
 {
     if (m_maskPoints.size() == 0) {
         m_maskPoints.push_back(cv::Point(2, 2));
-        m_maskPoints.push_back(cv::Point(CAM_WIDTH - 2, 2));
-        m_maskPoints.push_back(cv::Point(CAM_WIDTH - 2, CAM_HEIGHT - 2));
-        m_maskPoints.push_back(cv::Point(2, CAM_HEIGHT - 2));
+        m_maskPoints.push_back(cv::Point(RESOLUTION_WIDTH - 2, 2));
+        m_maskPoints.push_back(cv::Point(RESOLUTION_WIDTH - 2, RESOLUTION_HEIGHT - 2));
+        m_maskPoints.push_back(cv::Point(2, RESOLUTION_HEIGHT - 2));
         m_maskPoints.push_back(cv::Point(2, 2));
     }
 
-    CvMat* matrix = cvCreateMat(CAM_HEIGHT, CAM_WIDTH, CV_8UC1);
+    CvMat* matrix = cvCreateMat(RESOLUTION_HEIGHT, RESOLUTION_WIDTH, CV_8UC1);
     m_mask = cvarrToMat(matrix);  // OpenCV provided this function instead of Mat(matrix).
 
     for (int i = 0; i < m_mask.cols; i++) {
@@ -579,78 +753,26 @@ void ofApp::img_processor()
         return;
     }
 
-    auto n = m_rect_found.size();
-    if (!n) return;
+    m_result = m_rect_found.size();
+    if (!m_result) return;
 
-    for (int i = 0; i < n; i++) {
+    ofImage image;
+    toOf(m_image, image);
+
+    for (int i = 0; i < m_result; i++) {
         Rect rect = m_rect_found[i];
 
-        m_ocr.setFromPixels(m_grayImage.getPixels());
+        m_ocr.setFromPixels(image.getPixels());
         m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
-        m_ocr.resize(m_ocr.getWidth() + 32, m_ocr.getHeight() + 32);
+        m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
         m_ocr.update();
-        //////////////
 
-        // preprocess the image
-        /*
-                Mat gray = toCv(m_ocr);
-                Mat matblur;
-
-                GaussianBlur(gray, matblur, Size(1, 1), 0);
-
-                Mat thres;
-                threshold(matblur, thres, 0, 255, cv::THRESH_BINARY_INV + cv::THRESH_OTSU);
-
-                Mat opening;
-
-                Mat element = getStructuringElement(MORPH_RECT, Size(1, 1));
-                morphologyEx(thres, opening, MORPH_OPEN, element);
-
-                Mat m_invert = 255 - opening;
-                toOf(m_invert, m_ocr);
-        */
-        ////////////////////
         // string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
         // m_ocr.save(filename);
-        //        printf("-> %d \n", i);
 
-        // start ocr detection
         if (ofApp::process_tesseract()) break;
-
-        // if (producers.size() < 1000)
-        // producers.push_back(std::thread([&, thread_counter]() {
-        // std::thread::id id = std::this_thread::get_id();
-        // std::lock_guard<std::mutex> lock(tmutex);
-        // ts_queue.push(thread_counter [>id<]);
-
-        // m_ocrMap[thread_counter] = toCv(m_ocr).clone();
-        /////
-
-        ////        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        ////        string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-        ////      m_ocr.save(filename);
-        //}));
-
-        // thread_counter++;
     }
-
-    // static bool consumerset = false;
-    // if (!consumerset) {
-    // consumerset = true;
-    //// Create consumers.
-    // consumers.push_back(std::thread([&, thread_counter]() {
-    //// std::thread::id id;
-    // int id;
-
-    // while (true) {
-    // ts_queue.pop(id);
-    ////  if (ofApp::process_tesseract()) break;
-    // ofApp::process_tesseractX(id);
-    ////                    remove_producer(id);
-    //}
-    //}));
-    //}
 }
 
 void ofApp::ocr_detection(Rect rect)
@@ -775,37 +897,35 @@ void ofApp::keyPressed(int key)
         return;
     }
 
-    if (key == OF_KEY_F1) {
-        blur_value = 1;
-        return;
-    }
-
-    if (key == OF_KEY_F2) {
-        blur_value = 2;
-        return;
-    }
-
-    if (key == OF_KEY_F3) {
-        blur_value = 3;
-        return;
-    }
-
-    if (key == OF_KEY_F4) {
-        blur_value = 4;
-        return;
-    }
-
-    if (key == 'c') {
+    if (key == 's') {
+        m_start_processing = !m_start_processing;
         m_plate_number = {};
         m_rect_duplicates.clear();
         m_ocrMap.clear();
         m_search_time = 0;
+        isSet = false;
         return;
     }
-    if (key == 's') {
-        wait_sensor();
+
+    if (key == OF_KEY_F1) {
+        m_blur_value = 1;
         return;
     }
+
+    if (key == OF_KEY_F2) {
+        m_blur_value = 2;
+        return;
+    }
+
+    if (key == OF_KEY_F3) {
+        m_blur_value = 3;
+        return;
+    }
+
+    // if (key == 's') {
+    // wait_sensor();
+    // return;
+    //}
 
     if (key == '+') {
         m_lighten_value++;
@@ -816,64 +936,22 @@ void ofApp::keyPressed(int key)
         return;
     }
 
-    m_plate_number = {};
     if (key == '1') {
-        m_search_time = 0;
-        m_plate_number = "";
-        m_viewMode = 1;
+        m_plate_number = {};
+        m_view_mode = 1;
         return;
     }
 
     if (key == '2') {
-        isSet = false;
-        m_search_time = 0;
-        m_plate_number = "";
-        m_viewMode = 2;
+        m_plate_number = {};
+        m_view_mode = 2;
         return;
     }
 
     if (key == '3') {
-        m_search_time = 0;
-        m_plate_number = "";
-        m_viewMode = 3;
+        m_plate_number = {};
+        m_view_mode = 3;
         return;
-    }
-
-    if (key == '4') {
-        m_search_time = 0;
-        m_plate_number = "";
-        m_viewMode = 4;
-        return;
-    }
-
-    if (key == '5') {
-        m_search_time = 0;
-        m_plate_number = "";
-        m_viewMode = 5;
-        return;
-    }
-
-    if (key == 'z') {
-        saturation++;
-
-        return;
-    }
-
-    if (key == 'x') {
-        saturation--;
-
-        return;
-    }
-
-    if (m_isVideoMode) {
-        if (key == 32) {
-            if (!m_video.isPaused()) {
-                m_video.setPaused(true);
-            } else {
-                m_video.setPaused(false);
-            }
-            return;
-        }
     }
 
     // TAB

@@ -5,6 +5,8 @@
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
 
+#include "camera.h"
+
 #ifdef PI_CAM
 #include "ofxCvPiCam.h"
 #endif
@@ -16,7 +18,7 @@
 using namespace ofxCv;
 using namespace cv;
 
-#define IP_CAM
+//#define IP_CAM
 
 class ofApp : public ofBaseApp
 {
@@ -54,6 +56,29 @@ class ofApp : public ofBaseApp
     ///
     ofVideoPlayer m_video;
 
+    //////////////////////
+    Camera m_camera;
+    cv::Mat m_frame;
+    cv::Mat m_image;
+    cv::Mat m_gray;
+    cv::Mat m_mask_image;
+    cv::Mat m_canny_image;
+
+    int m_view_mode = 1;
+    int m_blur_value = 3;
+
+    vector<Point> m_maskPoints;
+
+    unsigned long previousMillis = 0;
+
+    size_t m_result = 0;
+
+    vector<Vec4i> m_hierarchy;
+    vector<vector<Point>> m_contours;
+    bool is_duplicate(Rect rect);
+    static bool m_start_processing;
+    /////////////////////
+
 #ifdef PI_CAM
     ofxCvPiCam cam;
 #else
@@ -63,7 +88,7 @@ class ofApp : public ofBaseApp
     bool m_isVideoMode = false;
     int m_match_counter = -1;
     long m_frameNumber = 0;
-    cv::Mat m_frame;
+    // cv::Mat m_frame;
     int m_viewMode = 1;
     Mat m_frameGray;
     Mat m_matGrayBg;
@@ -71,10 +96,6 @@ class ofApp : public ofBaseApp
     ofxCvGrayscaleImage m_grayBg, m_grayDiff;
     ofxCvGrayscaleImage m_grayImage;
     ofxCvGrayscaleImage m_grayFrame;
-
-    vector<Vec4i> m_hierarchy;
-    vector<vector<Point>> m_contours;
-    bool is_duplicate(Rect rect);
 
     Rect m_plate_size_max;
     Rect m_plate_size_min;
@@ -85,9 +106,8 @@ class ofApp : public ofBaseApp
     static string m_plate_number;
     Rect m_mask_rect;
     //  ofxHttpUtils m_httpUtils;
-    vector<Point> m_maskPoints;
     cv::Mat m_mask;
-    cv::Mat m_maskOutput;
+    //    cv::Mat m_maskOutput;
 
     static vector<int> m_platedb;
     static std::queue<ofImage> m_ocrQueue;
