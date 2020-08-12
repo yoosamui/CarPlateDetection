@@ -11,13 +11,13 @@
 #include <string>
 #include <vector>
 
-const int RESOLUTION_WIDTH = 640;   // 1024;
-const int RESOLUTION_HEIGHT = 480;  // 768;
-const int OCR_IMAGE_RESIZE = 16;
-const int CANNY_LOWTHRESHOLD = 100;
-const int CANNY_RATIO = 3;
-const int CANNY_KERNELSIZE = 3;
-const int SEARCH_TIMEOUT = 30;
+static const int RESOLUTION_WIDTH = 1024;
+static const int RESOLUTION_HEIGHT = 768;
+static const int OCR_IMAGE_RESIZE = 16;
+static const int CANNY_LOWTHRESHOLD = 100;
+static const int CANNY_RATIO = 3;
+static const int CANNY_KERNELSIZE = 3;
+static const int SEARCH_TIMEOUT = 30;
 
 bool ofApp::m_start_processing;
 bool ofApp::m_found;
