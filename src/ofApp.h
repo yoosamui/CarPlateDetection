@@ -64,7 +64,7 @@ class ofApp : public ofBaseApp
     cv::Mat m_mask_image;
     cv::Mat m_canny_image;
     cv::Mat m_resized_image;
-
+    cv::Mat m_lightenMat;
     cv::Mat m_gray_masked;
     int m_view_mode = 1;
     int m_blur_value = 3;

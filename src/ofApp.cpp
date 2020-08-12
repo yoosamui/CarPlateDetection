@@ -219,8 +219,11 @@ void ofApp::update()
     Size size(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
     resize(m_frame, m_resized_image, size);
 
+    m_lightenMat = m_resized_image + cv::Scalar(m_lighten_value, m_lighten_value, m_lighten_value);
+
     // convert to gray
-    cvtColor(m_resized_image, m_gray, COLOR_BGR2GRAY);
+    // cvtColor(m_resized_image, m_gray, COLOR_BGR2GRAY);
+    cvtColor(m_lightenMat, m_gray, COLOR_BGR2GRAY);
 
     // create the mask
     m_gray.copyTo(m_mask_image, m_mask);
@@ -380,10 +383,10 @@ void ofApp::draw()
     // show mode
     char buffer[512];
     sprintf(buffer,
-            "Time: %.2d:%.2d:%.2d View: %d Blur: %d Elapsed: "
-            "%2d Dup: %3d FPS: %f",
-            ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value, m_search_time,
-            (int)m_rect_duplicates.size(), ofGetFrameRate());
+            "Time: %.2d:%.2d:%.2d | View: %d | Blur: %d | Brightness: %d | Elapsed: "
+            "%2d | Dup: %d | FPS: %2.2f",
+            ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value,
+            m_lighten_value, m_search_time, (int)m_rect_duplicates.size(), ofGetFrameRate());
 
     ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 22);
 
@@ -652,9 +655,9 @@ void ofApp::img_processor()
 
         m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
 
+        string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+        m_ocr.save(filename);
         if (ofApp::process_tesseract()) {
-            string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
-            m_ocr.save(filename);
             break;
         }
     }
