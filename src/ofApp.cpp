@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-static const int RESOLUTION_WIDTH = 640;   // 1024;
-static const int RESOLUTION_HEIGHT = 480;  // 768;
+static const int RESOLUTION_WIDTH = 1024;  // 640;   // 1024;
+static const int RESOLUTION_HEIGHT = 768;  // 480;  // 768;
 static const int OCR_IMAGE_RESIZE = 16;
 static const int CANNY_LOWTHRESHOLD = 100;
 static const int CANNY_RATIO = 3;
@@ -76,8 +76,8 @@ void ofApp::setup()
     cout << "Cammera stream connected\n";
 
     // define default mask size
-    int h = RESOLUTION_HEIGHT - 300;
-    int w = RESOLUTION_WIDTH - 64;
+    int h = RESOLUTION_HEIGHT - 400;
+    int w = RESOLUTION_WIDTH - 220;
     int centerX = (RESOLUTION_WIDTH / 2) - w / 2;
     int centerY = (RESOLUTION_HEIGHT / 2) - h / 2;
 
@@ -179,14 +179,14 @@ bool ofApp::process_tesseract()
 
         string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        //   printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
 
         ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
         text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        //     printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
     }
@@ -224,29 +224,22 @@ void ofApp::update()
 
     // create the mask
     m_gray.copyTo(m_mask_image, m_mask);
-    // start image process
-    //    resolution_image.copyTo(m_image);
-    //   cvtColor(m_image, m_gray, COLOR_BGR2GRAY);
-    //   cvtColor(m_image, m_gray, COLOR_BGR2GRAY);
-    //    convertColor(m_mask_image, m_gray, CV_RGB2GRAY);
 
-    // convert to ofImage for faster processing
+    // convert to ofImage for faster drawing
     ofImage gray;
     toOf(m_gray, gray);
     m_grayImage.setFromPixels(gray.getPixels());
 
-    // create mask image
-    // m_gray.copyTo(m_mask_image, m_mask);
-
     if (m_start_processing && !m_found) {
-        // if (m_search_time >= 10) m_blur_value = 2;
-        // if (m_search_time >= 20) m_blur_value = 1;
+        if (m_search_time < 10) m_blur_value = 3;
+        if (m_search_time >= 10) m_blur_value = 2;
+        if (m_search_time >= 20) m_blur_value = 1;
     }
 
     // Noise Reduction Since edge detection is susceptible to noise
     // in the image, first step is to remove the noise with a Gaussian filter
-    m_mask_image.copyTo(m_gray_mask);
-    blur(m_gray_mask, m_gray_mask, Size(m_blur_value, m_blur_value));
+    m_mask_image.copyTo(m_gray_masked);
+    blur(m_gray_masked, m_gray_masked, Size(m_blur_value, m_blur_value));
 
     // Use the OpenCV function cv::Canny to implement the Canny Edge Detector.
     // If a pixel gradient is higher than the upper threshold, the pixel is accepted as an edge
@@ -254,7 +247,7 @@ void ofApp::update()
     // If the pixel gradient is between the two thresholds, then it will be accepted only if it is
     // connected to a pixel that is above the upper threshold. Canny recommended a upper:lower ratio
     // between 2:1 and 3:1.
-    Canny(m_gray_mask, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
+    Canny(m_gray_masked, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
           CANNY_KERNELSIZE);
 
     if (!m_start_processing) return;
@@ -285,7 +278,7 @@ void ofApp::update()
     vector<Point> approx;
 
     // debug
-    printf("Contours size: %d\n", m_result);
+    //    printf("Contours size: %d\n", m_result);
     int counter = 0;
 
     // find rectangle or square
@@ -300,11 +293,11 @@ void ofApp::update()
                 }
 
                 if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                    r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width  // &&
-                    /*  r.height <= r.width && r.width >= r.height*/) {
+                    r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
+                    r.height <= r.width && r.width >= r.height) {
                     m_rect_found.push_back(r);
-                    // printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width, r.height);
-                    counter++;
+                    //     printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width, r.height);
+                    //     counter++;
                 }
             }
         }
@@ -370,7 +363,7 @@ void ofApp::draw()
             m_grayImage.draw(0, 0);
             break;
         case 2:
-            drawMat(m_gray_mask, 0, 0);
+            drawMat(m_gray_masked, 0, 0);
             break;
         case 3:
             drawMat(m_canny_image, 0, 0);
@@ -387,12 +380,12 @@ void ofApp::draw()
     // show mode
     char buffer[512];
     sprintf(buffer,
-            "Time: %.2d:%.2d:%.2d ViewMode: %d Gaussian: %d SearchTime: "
-            "%2d Duplicates: %3d FPS: %f",
+            "Time: %.2d:%.2d:%.2d View: %d Blur: %d Elapsed: "
+            "%2d Dup: %3d FPS: %f",
             ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value, m_search_time,
             (int)m_rect_duplicates.size(), ofGetFrameRate());
 
-    ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 20);
+    ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 22);
 
     // Draw scann rectangle
     m_result = m_rect_found.size();
@@ -416,12 +409,14 @@ void ofApp::draw()
     if (m_found && !m_plate_number.empty()) {
         //   m_ocr.draw(0, 610);
 
-        // ofSetColor(ofColor::black);
         string message("Licence detected");
         if (m_frameNumber % 4) message = {};
 
+        ofSetColor(ofColor::white);
         m_font.drawString(m_plate_number, 2, RESOLUTION_HEIGHT + 24);
-        m_font.drawString(message, 50, RESOLUTION_HEIGHT + 24);
+
+        ofSetColor(yellowPrint);
+        m_font.drawString(message, 60, RESOLUTION_HEIGHT + 24);
 
     } else {
         if (m_start_processing) {
@@ -643,10 +638,6 @@ bool ofApp::is_duplicate(Rect rect)
 
 void ofApp::img_processor()
 {
-    if (!m_plate_number.empty()) {
-        return;
-    }
-
     m_result = m_rect_found.size();
     if (!m_result) return;
 
@@ -661,18 +652,11 @@ void ofApp::img_processor()
         m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
         m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
-        m_ocr.update();
-
-        string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
-        m_ocr.save(filename);
 
         if (ofApp::process_tesseract()) {
-            //    string filename = "ocr_found_" + to_string(i) + "_" + ofGetTimestampString() +
-            //    ".jpg";
-            // m_ocr.save(filename);
+            string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+            m_ocr.save(filename);
             break;
-        } else {
-            //    m_ocr.save(filename);
         }
     }
 }
@@ -843,25 +827,17 @@ void ofApp::keyPressed(int key)
     }
 
     if (key == '1') {
-        m_plate_number = {};
         m_view_mode = 1;
         return;
     }
 
     if (key == '2') {
-        m_plate_number = {};
         m_view_mode = 2;
         return;
     }
 
     if (key == '3') {
-        m_plate_number = {};
         m_view_mode = 3;
-        return;
-    }
-    if (key == '4') {
-        m_plate_number = {};
-        m_view_mode = 4;
         return;
     }
 
