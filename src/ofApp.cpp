@@ -787,6 +787,7 @@ void ofApp::keyPressed(int key)
         m_ocrMap.clear();
         m_search_time = 0;
         m_found = false;
+        m_blur_value = 3;
         isSet = false;
         return;
     }
