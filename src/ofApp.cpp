@@ -224,6 +224,11 @@ void ofApp::update()
     // create mask image
     m_gray.copyTo(m_mask_image, m_mask);
 
+    if (m_start_processing && !m_found) {
+        if (m_search_time >= 10) m_blur_value = 2;
+        if (m_search_time >= 20) m_blur_value = 1;
+    }
+
     // Noise Reduction Since edge detection is susceptible to noise
     // in the image, first step is to remove the noise with a Gaussian filter
     blur(m_mask_image, m_mask_image, Size(m_blur_value, m_blur_value));
@@ -793,11 +798,13 @@ void ofApp::keyPressed(int key)
 
     if (key == OF_KEY_F2) {
         m_blur_value = 2;
+        this->updateMask();
         return;
     }
 
     if (key == OF_KEY_F3) {
         m_blur_value = 3;
+        this->updateMask();
         return;
     }
 
@@ -833,71 +840,73 @@ void ofApp::keyPressed(int key)
         return;
     }
 
-    // TAB
-    if (key == 9) {
-        m_plate_rectangle_set = !m_plate_rectangle_set;
-    }
+    if (!m_start_processing) {
+        // TAB
+        if (key == 9) {
+            m_plate_rectangle_set = !m_plate_rectangle_set;
+        }
 
-    Rect* dispacher = m_plate_rectangle_set ? &m_plate_size_max : &m_mask_rect;
+        Rect* dispacher = m_plate_rectangle_set ? &m_plate_size_max : &m_mask_rect;
 
-    //
-    //    printf("Key = %d\n", key);
+        //
+        //    printf("Key = %d\n", key);
 
-    //
-    if (OF_KEY_ALT == key) {
-        m_key_control_set = !m_key_control_set;
-    }
+        //
+        if (OF_KEY_ALT == key) {
+            m_key_control_set = !m_key_control_set;
+        }
 
-    if (m_key_control_set) {
-        // resize mask
-        if (m_key_control_set && key == OF_KEY_UP) {
-            dispacher->height -= m_increment;
+        if (m_key_control_set) {
+            // resize mask
+            if (m_key_control_set && key == OF_KEY_UP) {
+                dispacher->height -= m_increment;
+
+                if (dispacher == &m_mask_rect) this->updateMask();
+            }
+
+            if (m_key_control_set && key == OF_KEY_DOWN) {
+                dispacher->height += m_increment;
+
+                if (dispacher == &m_mask_rect) this->updateMask();
+            }
+
+            if (m_key_control_set && key == OF_KEY_LEFT) {
+                dispacher->width -= m_increment;
+
+                if (dispacher == &m_mask_rect) this->updateMask();
+            }
+
+            if (m_key_control_set && key == OF_KEY_RIGHT) {
+                dispacher->width += m_increment;
+
+                if (dispacher == &m_mask_rect) this->updateMask();
+            }
+
+            return;
+        }
+
+        // move mask
+        if (OF_KEY_UP == key) {
+            dispacher->y -= m_increment;
+
+            if (dispacher == &m_mask_rect) this->updateMask();
+        }
+        if (OF_KEY_DOWN == key) {
+            dispacher->y += m_increment;
 
             if (dispacher == &m_mask_rect) this->updateMask();
         }
 
-        if (m_key_control_set && key == OF_KEY_DOWN) {
-            dispacher->height += m_increment;
+        if (OF_KEY_LEFT == key) {
+            dispacher->x -= m_increment;
 
             if (dispacher == &m_mask_rect) this->updateMask();
         }
-
-        if (m_key_control_set && key == OF_KEY_LEFT) {
-            dispacher->width -= m_increment;
-
-            if (dispacher == &m_mask_rect) this->updateMask();
-        }
-
-        if (m_key_control_set && key == OF_KEY_RIGHT) {
-            dispacher->width += m_increment;
+        if (OF_KEY_RIGHT == key) {
+            dispacher->x += m_increment;
 
             if (dispacher == &m_mask_rect) this->updateMask();
         }
-
-        return;
-    }
-
-    // move mask
-    if (OF_KEY_UP == key) {
-        dispacher->y -= m_increment;
-
-        if (dispacher == &m_mask_rect) this->updateMask();
-    }
-    if (OF_KEY_DOWN == key) {
-        dispacher->y += m_increment;
-
-        if (dispacher == &m_mask_rect) this->updateMask();
-    }
-
-    if (OF_KEY_LEFT == key) {
-        dispacher->x -= m_increment;
-
-        if (dispacher == &m_mask_rect) this->updateMask();
-    }
-    if (OF_KEY_RIGHT == key) {
-        dispacher->x += m_increment;
-
-        if (dispacher == &m_mask_rect) this->updateMask();
     }
 }
 
