@@ -231,9 +231,9 @@ void ofApp::update()
     m_grayImage.setFromPixels(gray.getPixels());
 
     if (m_start_processing && !m_found) {
-        if (m_search_time < 10) m_blur_value = 3;
-        if (m_search_time >= 10) m_blur_value = 2;
-        if (m_search_time >= 20) m_blur_value = 1;
+        if (m_search_time < 10) m_blur_value = 2;
+        if (m_search_time >= 10) m_blur_value = 1;
+        if (m_search_time >= 20) m_blur_value = 3;
     }
 
     // Noise Reduction Since edge detection is susceptible to noise
@@ -420,10 +420,9 @@ void ofApp::draw()
 
     } else {
         if (m_start_processing) {
-            //          string message("Scanning...");
+            string message("Processing: " + to_string(m_search_time) + " secs.");
             //            if (m_frameNumber % 6) message = {};
-
-            m_font.drawString("Processing...", 2, RESOLUTION_HEIGHT + 24);
+            m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
         } else {
             ofSetColor(ofColor::red);
             m_font.drawString("License plate not found", 2, RESOLUTION_HEIGHT + 24);
@@ -778,11 +777,6 @@ const int m_increment = 8;
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key)
 {
-    if (key == 'q') {
-        terminate();
-        return;
-    }
-
     if (key == 's') {
         m_start_processing = true;
         m_plate_number = {};
