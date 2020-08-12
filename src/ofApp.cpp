@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-static const int RESOLUTION_WIDTH = 1024;
-static const int RESOLUTION_HEIGHT = 768;
+static const int RESOLUTION_WIDTH = 640;   // 1024;
+static const int RESOLUTION_HEIGHT = 480;  // 768;
 static const int OCR_IMAGE_RESIZE = 16;
 static const int CANNY_LOWTHRESHOLD = 100;
 static const int CANNY_RATIO = 3;
@@ -89,7 +89,7 @@ void ofApp::setup()
     centerY = ((m_mask_rect.height / 2) + h / 2);
 
     m_plate_size_max = Rect(centerX, centerY, w, h);
-    m_plate_size_min = Rect(centerX, centerY, 30, 30);
+    m_plate_size_min = Rect(centerX, centerY, 10, 10);
 
     this->updateMask();
 
@@ -102,6 +102,8 @@ void ofApp::setup()
     m_platedb.push_back(470);   // sup moto
     m_platedb.push_back(7095);  // ford sup
     m_platedb.push_back(371);   // post man
+
+    m_grayImage.allocate(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
 }
 
 bool ofApp::is_ocr_detection_found(const string& text)
@@ -177,14 +179,14 @@ bool ofApp::process_tesseract()
 
         string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        //        printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        printf("[1]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
 
         ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
         text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        //      printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        printf("[2]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
     }
@@ -213,25 +215,38 @@ void ofApp::update()
 
     m_frameNumber++;
 
-    Mat resolution_image;
+    // resize the cammera frame
     Size size(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
-    resize(m_frame, resolution_image, size);
+    resize(m_frame, m_resized_image, size);
 
+    // convert to gray
+    cvtColor(m_resized_image, m_gray, COLOR_BGR2GRAY);
+
+    // create the mask
+    m_gray.copyTo(m_mask_image, m_mask);
     // start image process
-    resolution_image.copyTo(m_image);
-    cvtColor(m_image, m_gray, COLOR_BGR2GRAY);
+    //    resolution_image.copyTo(m_image);
+    //   cvtColor(m_image, m_gray, COLOR_BGR2GRAY);
+    //   cvtColor(m_image, m_gray, COLOR_BGR2GRAY);
+    //    convertColor(m_mask_image, m_gray, CV_RGB2GRAY);
+
+    // convert to ofImage for faster processing
+    ofImage gray;
+    toOf(m_gray, gray);
+    m_grayImage.setFromPixels(gray.getPixels());
 
     // create mask image
-    m_gray.copyTo(m_mask_image, m_mask);
+    // m_gray.copyTo(m_mask_image, m_mask);
 
     if (m_start_processing && !m_found) {
-        if (m_search_time >= 10) m_blur_value = 2;
-        if (m_search_time >= 20) m_blur_value = 1;
+        // if (m_search_time >= 10) m_blur_value = 2;
+        // if (m_search_time >= 20) m_blur_value = 1;
     }
 
     // Noise Reduction Since edge detection is susceptible to noise
     // in the image, first step is to remove the noise with a Gaussian filter
-    blur(m_mask_image, m_mask_image, Size(m_blur_value, m_blur_value));
+    m_mask_image.copyTo(m_gray_mask);
+    blur(m_gray_mask, m_gray_mask, Size(m_blur_value, m_blur_value));
 
     // Use the OpenCV function cv::Canny to implement the Canny Edge Detector.
     // If a pixel gradient is higher than the upper threshold, the pixel is accepted as an edge
@@ -239,7 +254,7 @@ void ofApp::update()
     // If the pixel gradient is between the two thresholds, then it will be accepted only if it is
     // connected to a pixel that is above the upper threshold. Canny recommended a upper:lower ratio
     // between 2:1 and 3:1.
-    Canny(m_mask_image, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
+    Canny(m_gray_mask, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
           CANNY_KERNELSIZE);
 
     if (!m_start_processing) return;
@@ -262,7 +277,7 @@ void ofApp::update()
     findContours(m_canny_image, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
     m_result = m_contours.size();
     if (!m_result) {
-        return;
+        // return;
     }
 
     m_rect_found.clear();
@@ -270,8 +285,8 @@ void ofApp::update()
     vector<Point> approx;
 
     // debug
-    // printf("Contours size: %d\n", m_result);
-    // int counter = 0;
+    printf("Contours size: %d\n", m_result);
+    int counter = 0;
 
     // find rectangle or square
     for (int a = 0; a < 2; a++) {
@@ -285,10 +300,11 @@ void ofApp::update()
                 }
 
                 if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-                    r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width) {
+                    r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width  // &&
+                    /*  r.height <= r.width && r.width >= r.height*/) {
                     m_rect_found.push_back(r);
-                    //    printf("[%2d] %d %d %d %d\n",counter,r.y, r.x,r.width,r.height );
-                    //     counter++;
+                    // printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width, r.height);
+                    counter++;
                 }
             }
         }
@@ -351,10 +367,10 @@ void ofApp::draw()
 
     switch (m_view_mode) {
         case 1:
-            drawMat(m_gray, 0, 0);
+            m_grayImage.draw(0, 0);
             break;
         case 2:
-            drawMat(m_mask_image, 0, 0);
+            drawMat(m_gray_mask, 0, 0);
             break;
         case 3:
             drawMat(m_canny_image, 0, 0);
@@ -634,22 +650,25 @@ void ofApp::img_processor()
     m_result = m_rect_found.size();
     if (!m_result) return;
 
-    ofImage image;
-    toOf(m_image, image);
+    //  ofImage image;
+    //    toOf(m_image, image);
+    // toOf(m_mask_image, image);
 
     for (int i = 0; i < m_result; i++) {
         Rect rect = m_rect_found[i];
 
-        m_ocr.setFromPixels(image.getPixels());
+        m_ocr.setFromPixels(m_grayImage.getPixels());
         m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
         m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
-        //    m_ocr.update();
+        m_ocr.update();
 
         string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+        m_ocr.save(filename);
 
         if (ofApp::process_tesseract()) {
-            string filename = "ocr_found_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+            //    string filename = "ocr_found_" + to_string(i) + "_" + ofGetTimestampString() +
+            //    ".jpg";
             // m_ocr.save(filename);
             break;
         } else {
@@ -787,7 +806,7 @@ void ofApp::keyPressed(int key)
         m_ocrMap.clear();
         m_search_time = 0;
         m_found = false;
-        m_blur_value = 3;
+        // m_blur_value = 3;
         isSet = false;
         return;
     }
@@ -838,6 +857,11 @@ void ofApp::keyPressed(int key)
     if (key == '3') {
         m_plate_number = {};
         m_view_mode = 3;
+        return;
+    }
+    if (key == '4') {
+        m_plate_number = {};
+        m_view_mode = 4;
         return;
     }
 
