@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-const int RESOLUTION_WIDTH = 1024;
-const int RESOLUTION_HEIGHT = 768;
+const int RESOLUTION_WIDTH = 640;   // 1024;
+const int RESOLUTION_HEIGHT = 480;  // 768;
 const int OCR_IMAGE_RESIZE = 16;
 const int CANNY_LOWTHRESHOLD = 100;
 const int CANNY_RATIO = 3;
@@ -639,12 +639,17 @@ void ofApp::img_processor()
         m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
         m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
-        m_ocr.update();
+        //    m_ocr.update();
 
-        // string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
-        // m_ocr.save(filename);
+        string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
 
-        if (ofApp::process_tesseract()) break;
+        if (ofApp::process_tesseract()) {
+            string filename = "ocr_found_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+            // m_ocr.save(filename);
+            break;
+        } else {
+            //    m_ocr.save(filename);
+        }
     }
 }
 
