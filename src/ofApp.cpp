@@ -23,14 +23,6 @@ static const string ONVIV_RTSP =
     "rtsp://admin:master!31416Pi@192.168.1.89:554/Streaming/channels/101";
 
 bool ofApp::m_start_processing;
-bool ofApp::m_found;
-
-ofImage ofApp::m_ocr;
-vector<int> ofApp::m_platedb;
-string ofApp::m_plate_number;
-
-vector<Rect> ofApp::m_rect_duplicates;
-
 float framerateMult;
 //--------------------------------------------------------------
 void ofApp::setup()
@@ -243,8 +235,10 @@ void ofApp::update()
     findContours(m_canny_image, m_contours, m_hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
     m_size = m_contours.size();
     if (!m_size) {
-        // return;
+        return;
     }
+
+    cout << "Frame: " << to_string(m_frameNumber) << " contours : " << to_string(m_size) << "\n";
 
     m_rect_found.clear();
     int approx_size[2]{4, 8};
@@ -423,7 +417,6 @@ void ofApp::img_processor()
     m_size = m_rect_found.size();
     if (!m_size) return;
 
-    cout << "Frame: " << to_string(m_frameNumber) << " contours : " << to_string(m_size) << "\n";
     for (size_t i = 0; i < m_size; i++) {
         Rect rect = m_rect_found[i];
 
@@ -545,10 +538,9 @@ void ofApp::keyPressed(int key)
         m_rect_duplicates.clear();
         m_search_time = 0;
         m_found = false;
-
+        m_frameNumber = 0;
         return;
     }
-
     if (key == OF_KEY_F1) {
         m_blur_value = 1;
         return;

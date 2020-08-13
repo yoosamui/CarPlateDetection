@@ -34,16 +34,13 @@ class ofApp : public ofBaseApp
     void updateMask();
     void ocr_detection(Rect rect);
     void img_processor();
-    //
-    static bool is_ocr_detection_found(const string& text);
-    static bool process_tesseract();
+
+    bool is_ocr_detection_found(const string& text);
+    bool process_tesseract();
 
     static bool compare_entry(const Rect& e1, const Rect& e2);
     std::string exec(const char* cmd);
-    ///
-    ofVideoPlayer m_video;
 
-    //////////////////////
     Camera m_camera;
     cv::Mat m_frame;
     cv::Mat m_image;
@@ -68,15 +65,7 @@ class ofApp : public ofBaseApp
     vector<vector<Point>> m_contours;
     bool is_duplicate(Rect rect);
     static bool m_start_processing;
-    static bool m_found;
-    /////////////////////
-
-#ifdef PI_CAM
-    ofxCvPiCam cam;
-#else
-    ofVideoGrabber cam;
-#endif
-
+    bool m_found;
     bool m_isVideoMode = false;
     int m_match_counter = -1;
     long m_frameNumber = 0;
@@ -92,17 +81,16 @@ class ofApp : public ofBaseApp
     Rect m_plate_size_max;
     Rect m_plate_size_min;
     vector<Rect> m_rect_found;
-    static vector<Rect> m_rect_duplicates;
-    static ofImage m_ocr;
+    vector<Rect> m_rect_duplicates;
+    ofImage m_ocr;
     ofTrueTypeFont m_font;
-    static string m_plate_number;
+    string m_plate_number;
     Rect m_mask_rect;
     //  ofxHttpUtils m_httpUtils;
     cv::Mat m_mask;
     //    cv::Mat m_maskOutput;
 
-    static vector<int> m_platedb;
-    static std::queue<ofImage> m_ocrQueue;
+    vector<int> m_platedb;
 
     int m_search_time = 0;
     int m_lighten_value = 0;
