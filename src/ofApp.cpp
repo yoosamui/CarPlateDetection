@@ -3,9 +3,7 @@
 #include <condition_variable>
 #include <iostream>
 #include <locale>
-//#include <mutex>
 #include <opencv2/text/ocr.hpp>
-#include <queue>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -22,8 +20,9 @@ static const int SEARCH_TIMEOUT = 30;
 static const string ONVIV_RTSP =
     "rtsp://admin:master!31416Pi@192.168.1.89:554/Streaming/channels/101";
 
+// static members
 bool ofApp::m_start_processing;
-float framerateMult;
+
 //--------------------------------------------------------------
 void ofApp::setup()
 {
@@ -33,7 +32,7 @@ void ofApp::setup()
 
     // set of options
     ofSetVerticalSync(true);
-    framerateMult = 1.0f;
+    m_framerateMult = 1.0f;
     ofSetFrameRate(60);
     ofSetWindowTitle("Licence plate recognition v4.0");
 
@@ -59,13 +58,18 @@ void ofApp::setup()
 
     m_mask_rect = Rect(centerX, centerY, w, h);
 
-    h = 100;
     w = 120;
-    centerX = (m_mask_rect.width / 2);
-    centerY = ((m_mask_rect.height / 2) + h / 2);
-
+    h = 60;
+    centerX = ofGetWindowWidth() / 2 - w / 2;
+    centerY = ofGetWindowHeight() / 2 - h / 2;
     m_plate_size_max = Rect(centerX, centerY, w, h);
-    m_plate_size_min = Rect(centerX, centerY, 10, 10);
+
+    w = 10;
+    h = 10;
+    centerX = ofGetWindowWidth() / 2 - w / 2;
+    centerY = ofGetWindowHeight() / 2 - h / 2;
+
+    m_plate_size_min = Rect(centerX, centerY, w, h);
 
     this->updateMask();
 
@@ -82,64 +86,9 @@ void ofApp::setup()
     m_grayImage.allocate(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
 }
 
-bool ofApp::is_ocr_detection_found(const string& text)
-{
-    if (text.empty() || text.length() < 2) return false;
-
-    try {
-        long pnumber = std::stol(text);
-
-        // checks if exitst in database
-        vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), pnumber);
-
-        if (it != m_platedb.end()) {
-            m_plate_number = to_string(pnumber);
-            m_rect_duplicates.clear();
-            m_start_processing = false;
-            m_found = true;
-
-            return true;
-        }
-    } catch (const std::invalid_argument& ia) {
-        std::cerr << "Invalid argument: " << ia.what() << '\n';
-    }
-
-    return false;
-}
-
-bool ofApp::process_tesseract()
-{
-    if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
-        Mat img;
-        img = toCv(m_ocr);
-
-        auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
-
-        string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-        string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        // printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
-
-        if (is_ocr_detection_found(pnumber)) return true;
-    }
-
-    return false;
-}
-
 //--------------------------------------------------------------
 void ofApp::update()
 {
-    framerateMult =
-        60.0f / (1.0f / ofGetLastFrameTime());  // changed as per Arturo correction..thanks
-
-    if (ofGetElapsedTimef() < 10.0f)
-        ofSetFrameRate(120);
-    else if (ofGetElapsedTimef() < 20.0f)
-        ofSetFrameRate(60);
-    else if (ofGetElapsedTimef() < 30.0f)
-        ofSetFrameRate(30);
-    else if (ofGetElapsedTimef() < 40.0f)
-        ofSetFrameRate(10);
-
     if (!m_camera.get_object().read(m_frame)) return;
     // check if we succeeded
 
@@ -209,8 +158,6 @@ void ofApp::update()
         return;
     }
 
-    cout << "Frame: " << to_string(m_frameNumber) << " contours : " << to_string(m_size) << "\n";
-
     m_rect_found.clear();
     int approx_size[2]{4, 8};
     vector<Point> approx;
@@ -224,7 +171,7 @@ void ofApp::update()
         for (size_t i = 0; i < m_size; i++) {
             approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.01,
                          true);
-            if (approx.size() == approx_size[a]) {
+            if (approx.size() == (size_t)approx_size[a]) {
                 Rect r = boundingRect(m_contours[i]);
                 if (is_duplicate(r)) {
                     continue;
@@ -266,18 +213,32 @@ void ofApp::draw()
 
     // show resolution and mask
     ofNoFill();
-    ofSetLineWidth(1.5);
+    ofSetLineWidth(2.5);
     ofSetColor(ofColor::white);
     ofDrawRectangle(0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
     ofDrawRectangle(m_mask_rect.x, m_mask_rect.y, m_mask_rect.width, m_mask_rect.height);
 
-    // show mode
     char buffer[512];
-    sprintf(buffer,
-            "Time: %.2d:%.2d:%.2d | View: %d | Blur: %d | Brightness: %d | Elapsed: "
-            "%2d | Dup: %d | FPS: %2.2f",
-            ofGetHours(), ofGetMinutes(), ofGetSeconds(), m_view_mode, m_blur_value,
-            m_lighten_value, m_search_time, (int)m_rect_duplicates.size(), ofGetFrameRate());
+    string status_format(
+        "Time: %.2d:%.2d:%.2d | View: %d | Blur: %d | Brightness: %d | Elapsed: %2d | Dup: %d | "
+        "Frame: %ld | FPS: %2.2f");
+
+    // clang-format off
+
+    // show status info
+    sprintf(buffer, status_format.c_str(),
+            ofGetHours(),
+            ofGetMinutes(),
+            ofGetSeconds(),
+            m_view_mode,
+            m_blur_value,
+            m_lighten_value,
+            m_search_time,
+            (int)m_rect_duplicates.size(),
+            m_frameNumber,
+            ofGetFrameRate());
+
+    // clang-format on
 
     ofDrawBitmapString(buffer, 300, RESOLUTION_HEIGHT + 22);
 
@@ -296,8 +257,13 @@ void ofApp::draw()
     }
 
     // show the plate size
+    ofSetLineWidth(1);
     ofDrawRectangle(m_plate_size_max.x, m_plate_size_max.y, m_plate_size_max.width,
                     m_plate_size_max.height);
+
+    ofDrawRectangle(m_plate_size_min.x, m_plate_size_min.y, m_plate_size_min.width,
+                    m_plate_size_min.height);
+
     ofPushStyle();
     // Show the result if something found
     if (m_found && !m_plate_number.empty()) {
@@ -310,12 +276,11 @@ void ofApp::draw()
         m_font.drawString(m_plate_number, 2, RESOLUTION_HEIGHT + 24);
 
         ofSetColor(yellowPrint);
-        m_font.drawString(message, 60, RESOLUTION_HEIGHT + 24);
+        m_font.drawString(message, 70, RESOLUTION_HEIGHT + 24);
 
     } else {
         if (m_start_processing) {
             string message("Processing: " + to_string(m_search_time) + " secs.");
-            //            if (m_frameNumber % 6) message = {};
             m_font.drawString(message, 2, RESOLUTION_HEIGHT + 24);
         } else {
             ofSetColor(ofColor::red);
@@ -324,6 +289,20 @@ void ofApp::draw()
     }
 
     ofPopStyle();
+}
+void ofApp::regulate_framerate()
+{
+    m_framerateMult =
+        60.0f / (1.0f / ofGetLastFrameTime());  // changed as per Arturo correction..thanks
+
+    if (ofGetElapsedTimef() < 10.0f)
+        ofSetFrameRate(120);
+    else if (ofGetElapsedTimef() < 20.0f)
+        ofSetFrameRate(60);
+    else if (ofGetElapsedTimef() < 30.0f)
+        ofSetFrameRate(30);
+    else if (ofGetElapsedTimef() < 40.0f)
+        ofSetFrameRate(10);
 }
 
 void ofApp::updateMask()
@@ -366,6 +345,49 @@ void ofApp::createMask()
     fillConvexPoly(m_mask, &polyright[0], polyright.size(), 255, 8, 0);
 }
 
+bool ofApp::is_ocr_detection_found(const string& text)
+{
+    if (text.empty() || text.length() < 2) return false;
+
+    try {
+        long pnumber = std::stol(text);
+
+        // checks if exitst in database
+        vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), pnumber);
+
+        if (it != m_platedb.end()) {
+            m_plate_number = to_string(pnumber);
+            m_rect_duplicates.clear();
+            m_start_processing = false;
+            m_found = true;
+
+            return true;
+        }
+    } catch (const std::invalid_argument& ia) {
+        std::cerr << "Invalid argument: " << ia.what() << '\n';
+    }
+
+    return false;
+}
+
+bool ofApp::process_tesseract()
+{
+    if (m_ocr.getPixels().size() > 0 && m_plate_number.empty()) {
+        Mat img;
+        img = toCv(m_ocr);
+
+        auto ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 6);
+
+        string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
+        string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
+        // printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
+
+        if (is_ocr_detection_found(pnumber)) return true;
+    }
+
+    return false;
+}
+
 bool ofApp::compare_entry(const Rect& e1, const Rect& e2)
 {
     return e1.y > e2.y;
@@ -388,6 +410,8 @@ void ofApp::img_processor()
     m_size = m_rect_found.size();
     if (!m_size) return;
 
+    cout << " Contours: " << to_string(m_size) << "\n";
+
     for (size_t i = 0; i < m_size; i++) {
         Rect rect = m_rect_found[i];
 
@@ -402,81 +426,6 @@ void ofApp::img_processor()
             break;
         }
     }
-}
-
-void ofApp::ocr_detection(Rect rect)
-{
-#ifdef AAAA
-    if (!m_plate_number.empty()) {
-        return;
-    }
-
-    // crop the image
-    m_ocr.setFromPixels(m_grayImage.getPixels());
-    m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
-
-#ifdef OCR_PROCESS_IMAGE
-
-    // preprocess the image
-    Mat gray = toCv(m_ocr);
-    Mat matblur;
-
-    GaussianBlur(gray, matblur, Size(3, 3), 0);
-
-    Mat thres;
-    threshold(matblur, thres, 0, 255, cv::THRESH_BINARY_INV + cv::THRESH_OTSU);
-
-    Mat opening;
-
-    Mat element = getStructuringElement(MORPH_RECT, Size(1, 1));
-    morphologyEx(thres, opening, MORPH_OPEN, element);
-
-    Mat m_invert = 255 - opening;
-    toOf(m_invert, m_ocr);
-
-#endif
-
-    // resize
-    m_ocr.resize(m_ocr.getWidth() + 8, m_ocr.getHeight() + 8);
-    m_ocr.update();
-    string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-    m_ocr.save(filename);
-
-    /*
-        uint64_t currentMillis = ofGetElapsedTimeMillis();
-        if ((int)(currentMillis - previousMillis) >= 100) {
-            previousMillis = currentMillis;
-        }
-        */
-
-    ofApp::process_tesseract();
-    return;
-
-    // Create producers.
-    if (producers.size() < 1000)
-        producers.push_back(std::thread([&, thread_counter]() {
-            std::thread::id id = std::this_thread::get_id();
-            std::lock_guard<std::mutex> lock(tmutex);
-            ts_queue.push(id);
-
-            //        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            //        string filename = "ocr_image_" + ofGetTimestampString() + ".jpg";
-            //      m_ocr.save(filename);
-        }));
-
-    if (thread_counter < max_consumers)
-        // Create consumers.
-        consumers.push_back(std::thread([&, thread_counter]() {
-            std::thread::id id;
-            while (true) {
-                ts_queue.pop(id);
-                ofApp::process_tesseract();
-                remove_producer(id);
-            }
-        }));
-
-    thread_counter++;
-#endif
 }
 
 std::string ofApp::exec(const char* cmd)
@@ -560,9 +509,6 @@ void ofApp::keyPressed(int key)
         }
 
         Rect* dispacher = m_plate_rectangle_set ? &m_plate_size_max : &m_mask_rect;
-
-        //
-        //    printf("Key = %d\n", key);
 
         //
         if (OF_KEY_ALT == key) {

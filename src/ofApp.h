@@ -32,12 +32,12 @@ class ofApp : public ofBaseApp
 
     void createMask();
     void updateMask();
-    void ocr_detection(Rect rect);
     void img_processor();
 
     bool is_ocr_detection_found(const string& text);
     bool process_tesseract();
 
+    float m_framerateMult;
     static bool compare_entry(const Rect& e1, const Rect& e2);
     std::string exec(const char* cmd);
 
@@ -61,6 +61,7 @@ class ofApp : public ofBaseApp
 
     size_t m_size = 0;
 
+    void regulate_framerate();
     vector<Vec4i> m_hierarchy;
     vector<vector<Point>> m_contours;
     bool is_duplicate(Rect rect);
