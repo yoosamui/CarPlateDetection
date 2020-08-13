@@ -85,6 +85,18 @@ void ofApp::setup()
 
     m_grayImage.allocate(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
 }
+// helper function :
+// finds a cosine of angle between vectors
+// from pt0->pt1 and from pt0->pt2
+static double angle(Point pt1, Point pt2, Point pt0)
+{
+    double dx1 = pt1.x - pt0.x;
+    double dy1 = pt1.y - pt0.y;
+    double dx2 = pt2.x - pt0.x;
+    double dy2 = pt2.y - pt0.y;
+    return (dx1 * dx2 + dy1 * dy2) /
+           sqrt((dx1 * dx1 + dy1 * dy1) * (dx2 * dx2 + dy2 * dy2) + 1e-10);
+}
 
 //--------------------------------------------------------------
 void ofApp::update()
@@ -169,8 +181,36 @@ void ofApp::update()
     // find rectangle or square
     for (int a = 0; a < 2; a++) {
         for (size_t i = 0; i < m_size; i++) {
-            approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.01,
+            approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.02,
                          true);
+
+            /*
+if (approx.size() == 4 && fabs(contourArea(approx)) > 1000 && isContourConvex(approx)) {
+   double maxCosine = 0;
+   for (int j = 2; j < 5; j++) {
+       // find the maximum cosine of the angle between joint edges
+       double cosine = fabs(angle(approx[j % 4], approx[j - 2], approx[j - 1]));
+       maxCosine = std::max(maxCosine, cosine);
+   }
+   // if cosines of all angles are small
+   // (all angles are ~90 degree) then write quandrange
+   // vertices to resultant sequence
+   //                if (maxCosine < 0.3) squares.push_back(approx);
+
+   Rect r = boundingRect(m_contours[i]);
+   if (is_duplicate(r)) {
+       continue;
+   }
+
+   if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
+       r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
+       r.height <= r.width && r.width >= r.height) {
+       m_rect_found.push_back(r);
+       printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width, r.height);
+   }
+}
+*/
+
             if (approx.size() == (size_t)approx_size[a]) {
                 Rect r = boundingRect(m_contours[i]);
                 if (is_duplicate(r)) {
