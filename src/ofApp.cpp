@@ -103,11 +103,13 @@ void ofApp::update()
 {
     if (!m_camera.get_object().read(m_frame)) return;
     // check if we succeeded
+    //
 
     // m_camera.get_object() >> m_frame;
     if (m_frame.empty()) return;
     //
     m_frameNumber++;
+    // this->regulate_framerate();
 
     // resize the cammera frame
     Size size(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
