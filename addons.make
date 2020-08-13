@@ -1,0 +1,4 @@
+#ofxHttpUtils
+ofxCv
+ofxOpenCv
+#ofxCvPiCam

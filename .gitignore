@@ -16,7 +16,6 @@ src/.deps/
 *.ex
 *.EX
 *.in~
-*.un~
 *~
 clang-format.sh
 clang-tidy.sh
@@ -108,6 +107,7 @@ tags
 *.swn
 *.swo
 
+*.mov
 
 # Prerequisites
 *.d
