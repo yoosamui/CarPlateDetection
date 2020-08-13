@@ -34,7 +34,7 @@ void ofApp::setup()
     // set of options
     ofSetVerticalSync(true);
     framerateMult = 1.0f;
-    //    ofSetFrameRate(60);
+    ofSetFrameRate(60);
     ofSetWindowTitle("Licence plate recognition v4.0");
 
     // needed for tesseract
@@ -120,53 +120,25 @@ bool ofApp::process_tesseract()
         // printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
-        /*
-                ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 9);
-
-                text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-                pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-                printf("[9]---------->%s %s\n", text.c_str(), pnumber.c_str());
-
-                if (is_ocr_detection_found(pnumber)) return true;
-
-                ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 0);
-
-                text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-                pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-                printf("[0]---------->%s %s\n", text.c_str(), pnumber.c_str());
-
-                if (is_ocr_detection_found(pnumber)) return true;
-
-                ocrp = cv::text::OCRTesseract::create(NULL, "eng", "0123456789", 3, 3);
-
-                text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
-                pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-                printf("[3]---------->%s %s\n", text.c_str(), pnumber.c_str());
-
-                if (is_ocr_detection_found(pnumber)) return true;
-                */
     }
 
     return false;
 }
 
-static bool isSet = false;
 //--------------------------------------------------------------
 void ofApp::update()
 {
-    /*
-        framerateMult =
-            60.0f / (1.0f / ofGetLastFrameTime());  // changed as per Arturo correction..thanks
+    framerateMult =
+        60.0f / (1.0f / ofGetLastFrameTime());  // changed as per Arturo correction..thanks
 
-        if (ofGetElapsedTimef() < 10.0f)
-            ofSetFrameRate(120);
-        else if (ofGetElapsedTimef() < 20.0f)
-            ofSetFrameRate(60);
-        else if (ofGetElapsedTimef() < 30.0f)
-            ofSetFrameRate(30);
-        else if (ofGetElapsedTimef() < 40.0f)
-            ofSetFrameRate(10);
-    */
+    if (ofGetElapsedTimef() < 10.0f)
+        ofSetFrameRate(120);
+    else if (ofGetElapsedTimef() < 20.0f)
+        ofSetFrameRate(60);
+    else if (ofGetElapsedTimef() < 30.0f)
+        ofSetFrameRate(30);
+    else if (ofGetElapsedTimef() < 40.0f)
+        ofSetFrameRate(10);
 
     if (!m_camera.get_object().read(m_frame)) return;
     // check if we succeeded
@@ -217,7 +189,6 @@ void ofApp::update()
 
     if (!m_start_processing) return;
 
-    if (isSet) return;
     if (m_search_time >= SEARCH_TIMEOUT) {
         m_plate_number = {};
         m_start_processing = false;
