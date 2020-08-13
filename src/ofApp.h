@@ -42,6 +42,7 @@ class ofApp : public ofBaseApp
     std::string exec(const char* cmd);
 
     Camera m_camera;
+
     cv::Mat m_frame;
     cv::Mat m_image;
     cv::Mat m_gray;

@@ -420,7 +420,7 @@ bool ofApp::process_tesseract()
 
         string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        // printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        //// printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
     }
