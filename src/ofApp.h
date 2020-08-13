@@ -4,19 +4,12 @@
 #include "ofMain.h"
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
+#include "camera.h"
 
-#ifdef PI_CAM
-#include "ofxCvPiCam.h"
-#endif
-
-#include <thread>
-#include <queue>          // std::queue
 // clang-format on
-#include "thread_safe_queue.h"
+
 using namespace ofxCv;
 using namespace cv;
-
-//#define PI_CAM
 
 class ofApp : public ofBaseApp
 {
@@ -40,15 +33,43 @@ class ofApp : public ofBaseApp
     void createMask();
     void updateMask();
     void ocr_detection(Rect rect);
-    static void process_tesseract();
+    void img_processor();
+    //
+    static bool is_ocr_detection_found(const string& text);
+    static bool process_tesseract();
 
     static bool compare_entry(const Rect& e1, const Rect& e2);
-    static void remove_producer(std::thread::id id);
-    static void remove_consumer(std::thread::id id);
-    void wait_sensor();
     std::string exec(const char* cmd);
     ///
     ofVideoPlayer m_video;
+
+    //////////////////////
+    Camera m_camera;
+    cv::Mat m_frame;
+    cv::Mat m_image;
+    cv::Mat m_gray;
+    cv::Mat m_mask_image;
+    cv::Mat m_canny_image;
+    cv::Mat m_resized_image;
+    cv::Mat m_lightenMat;
+    cv::Mat m_gray_masked;
+    int m_view_mode = 1;
+    int m_blur_value = 3;
+
+    bool m_plate_rectangle_set = false;
+    bool m_key_control_set = false;
+    vector<Point> m_maskPoints;
+
+    unsigned long previousMillis = 0;
+
+    size_t m_size = 0;
+
+    vector<Vec4i> m_hierarchy;
+    vector<vector<Point>> m_contours;
+    bool is_duplicate(Rect rect);
+    static bool m_start_processing;
+    static bool m_found;
+    /////////////////////
 
 #ifdef PI_CAM
     ofxCvPiCam cam;
@@ -59,7 +80,7 @@ class ofApp : public ofBaseApp
     bool m_isVideoMode = false;
     int m_match_counter = -1;
     long m_frameNumber = 0;
-    cv::Mat m_frame;
+    // cv::Mat m_frame;
     int m_viewMode = 1;
     Mat m_frameGray;
     Mat m_matGrayBg;
@@ -68,23 +89,21 @@ class ofApp : public ofBaseApp
     ofxCvGrayscaleImage m_grayImage;
     ofxCvGrayscaleImage m_grayFrame;
 
-    vector<Vec4i> m_hierarchy;
-    vector<vector<Point>> m_contours;
-
     Rect m_plate_size_max;
     Rect m_plate_size_min;
     vector<Rect> m_rect_found;
+    static vector<Rect> m_rect_duplicates;
     static ofImage m_ocr;
     ofTrueTypeFont m_font;
     static string m_plate_number;
     Rect m_mask_rect;
     //  ofxHttpUtils m_httpUtils;
-    vector<Point> m_maskPoints;
     cv::Mat m_mask;
-    cv::Mat m_maskOutput;
+    //    cv::Mat m_maskOutput;
 
     static vector<int> m_platedb;
     static std::queue<ofImage> m_ocrQueue;
 
     int m_search_time = 0;
+    int m_lighten_value = 0;
 };
