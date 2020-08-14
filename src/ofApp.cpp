@@ -12,7 +12,7 @@
 static const int m_increment = 8;
 static const int RESOLUTION_WIDTH = 1280;
 static const int RESOLUTION_HEIGHT = 728;
-static const int OCR_IMAGE_RESIZE = 16;
+static const int OCR_IMAGE_RESIZE = 2;
 static const int CANNY_LOWTHRESHOLD = 100;
 static const int CANNY_RATIO = 3;
 static const int CANNY_KERNELSIZE = 3;
@@ -64,8 +64,8 @@ void ofApp::setup()
     centerY = ofGetWindowHeight() / 2 - h / 2;
     m_plate_size_max = Rect(centerX, centerY, w, h);
 
-    w = 10;
-    h = 10;
+    w = 20;
+    h = 12;
     centerX = ofGetWindowWidth() / 2 - w / 2;
     centerY = ofGetWindowHeight() / 2 - h / 2;
 
@@ -149,7 +149,8 @@ void ofApp::update()
     // between 2:1 and 3:1.
     Canny(m_gray_masked, m_canny_image, CANNY_LOWTHRESHOLD, CANNY_LOWTHRESHOLD * CANNY_RATIO,
           CANNY_KERNELSIZE);
-
+    //    dilate(m_canny_image, m_canny_image, Mat(), Point(-1, -1));
+    //    dilate(m_canny_image, 1.0);
     if (!m_start_processing) return;
 
     if (m_search_time >= SEARCH_TIMEOUT) {
@@ -185,33 +186,33 @@ void ofApp::update()
         for (size_t i = 0; i < m_size; i++) {
             approxPolyDP(Mat(m_contours[i]), approx, arcLength(Mat(m_contours[i]), true) * 0.02,
                          true);
-
             /*
-if (approx.size() == 4 && fabs(contourArea(approx)) > 1000 && isContourConvex(approx)) {
-   double maxCosine = 0;
-   for (int j = 2; j < 5; j++) {
-       // find the maximum cosine of the angle between joint edges
-       double cosine = fabs(angle(approx[j % 4], approx[j - 2], approx[j - 1]));
-       maxCosine = std::max(maxCosine, cosine);
-   }
-   // if cosines of all angles are small
-   // (all angles are ~90 degree) then write quandrange
-   // vertices to resultant sequence
-   //                if (maxCosine < 0.3) squares.push_back(approx);
+                        if (approx.size() == 4 && fabs(contourArea(approx)) > 1000 &&
+               isContourConvex(approx)) { double maxCosine = 0; for (int j = 2; j < 5; j++) {
+                                // find the maximum cosine of the angle between joint edges
+                                double cosine = fabs(angle(approx[j % 4], approx[j - 2], approx[j -
+               1])); maxCosine = std::max(maxCosine, cosine);
+                            }
+                            // if cosines of all angles are small
+                            // (all angles are ~90 degree) then write quandrange
+                            // vertices to resultant sequence
+                            if (maxCosine < 0.3)  // ssquares.push_back(approx);
+                            {
+                                Rect r = boundingRect(m_contours[i]);
+                                if (is_duplicate(r)) {
+                                    continue;
+                                }
 
-   Rect r = boundingRect(m_contours[i]);
-   if (is_duplicate(r)) {
-       continue;
-   }
-
-   if (r.width > m_plate_size_min.width && r.height > m_plate_size_min.height &&
-       r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
-       r.height <= r.width && r.width >= r.height) {
-       m_rect_found.push_back(r);
-       printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width, r.height);
-   }
-}
-*/
+                                if (r.width > m_plate_size_min.width && r.height >
+               m_plate_size_min.height && r.height <= m_plate_size_max.height && r.width <=
+               m_plate_size_max.width && r.height <= r.width && r.width >= r.height) {
+                                    m_rect_found.push_back(r);
+                                    printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width,
+               r.height);
+                                }
+                            }
+                        }
+            */
 
             if (approx.size() == (size_t)approx_size[a]) {
                 Rect r = boundingRect(m_contours[i]);
@@ -223,7 +224,8 @@ if (approx.size() == 4 && fabs(contourArea(approx)) > 1000 && isContourConvex(ap
                     r.height <= m_plate_size_max.height && r.width <= m_plate_size_max.width &&
                     r.height <= r.width && r.width >= r.height) {
                     m_rect_found.push_back(r);
-                    //    printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width, r.height);
+                    //    printf("[%2d] %d %d %d %d\n", counter, r.y, r.x, r.width,
+
                     counter++;
                 }
             }
@@ -462,11 +464,13 @@ void ofApp::img_processor()
 
         m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
 
+        string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
         if (ofApp::process_tesseract()) {
-            //        string filename = "ocr_" + to_string(i) + "_" + ofGetTimestampString() +
-            //        ".jpg"; m_ocr.save(filename);
-            break;
+            string filename = "__ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
+            m_ocr.save(filename);
+            return;
         }
+        m_ocr.save(filename);
     }
 }
 
@@ -544,7 +548,8 @@ void ofApp::keyPressed(int key)
         return;
     }
 
-    if (!m_start_processing) {
+    // if (!m_start_processing)
+    {
         // TAB
         if (key == 9) {
             m_plate_rectangle_set = !m_plate_rectangle_set;
