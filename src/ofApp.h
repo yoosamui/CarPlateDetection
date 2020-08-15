@@ -78,11 +78,12 @@ class ofApp : public ofBaseApp
     Mat m_cannyOutput;
     ofxCvGrayscaleImage m_grayBg, m_grayDiff;
     ofxCvGrayscaleImage m_grayImage;
-    ofxCvGrayscaleImage m_grayFrame;
+    ofxCvGrayscaleImage m_gray_resized;
 
     Rect m_plate_size_max;
     Rect m_plate_size_min;
     vector<Rect> m_rect_found;
+    Rect m_rect_detected;
     vector<Rect> m_rect_duplicates;
     ofImage m_ocr;
     ofTrueTypeFont m_font;

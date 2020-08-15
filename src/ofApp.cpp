@@ -84,6 +84,7 @@ void ofApp::setup()
     m_platedb.push_back(371);   // post man
 
     m_grayImage.allocate(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
+    m_gray_resized.allocate(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
 }
 // helper function :
 // finds a cosine of angle between vectors
@@ -111,9 +112,14 @@ void ofApp::update()
     m_frameNumber++;
     // this->regulate_framerate();
 
+    ofImage gray;
     // resize the cammera frame
     Size size(RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
     resize(m_frame, m_resized_image, size);
+
+    cvtColor(m_resized_image, m_gray, COLOR_BGR2GRAY);
+    toOf(m_gray, gray);
+    m_gray_resized.setFromPixels(gray.getPixels());
 
     m_lightenMat = m_resized_image + cv::Scalar(m_lighten_value, m_lighten_value, m_lighten_value);
 
@@ -125,7 +131,6 @@ void ofApp::update()
     m_gray.copyTo(m_mask_image, m_mask);
 
     // convert to ofImage for faster drawing
-    ofImage gray;
     toOf(m_gray, gray);
     m_grayImage.setFromPixels(gray.getPixels());
 
@@ -245,10 +250,11 @@ void ofApp::draw()
 
     switch (m_view_mode) {
         case 1:
-            m_grayImage.draw(0, 0);
+            m_gray_resized.draw(0, 0);
+
             break;
         case 2:
-            drawMat(m_gray_masked, 0, 0);
+            m_grayImage.draw(0, 0);
             break;
         case 3:
             drawMat(m_canny_image, 0, 0);
@@ -321,6 +327,21 @@ void ofApp::draw()
 
         ofSetColor(yellowPrint);
         m_font.drawString(message, 70, RESOLUTION_HEIGHT + 24);
+
+        if (m_frameNumber % 4) {
+            ofSetLineWidth(2.0);
+            // ofFill();
+            ofSetColor(ofColor::green);
+            ofDrawRectangle(m_rect_detected.x, m_rect_detected.y, m_rect_detected.width,
+                            m_rect_detected.height);
+            //    ofSetColor(ofColor::white);
+        }
+
+        // i.x =  Rectm_rect_detected.y, rect_detected.width,
+        // m_rect_detected.height);
+        //
+        //        ofDrawRectangle(m_rect_detected.x, m_rect_detected.y, rect_detected.width,
+        //                        m_rect_detected.height);
 
     } else {
         if (m_start_processing) {
@@ -396,6 +417,11 @@ bool ofApp::is_ocr_detection_found(const string& text)
     try {
         long pnumber = std::stol(text);
 
+        if (pnumber < 100 && pnumber > 9) {
+            cout << " tolerant...........................\n";
+            pnumber = 470;
+        }
+
         // checks if exitst in database
         vector<int>::iterator it = find(m_platedb.begin(), m_platedb.end(), pnumber);
 
@@ -424,7 +450,7 @@ bool ofApp::process_tesseract()
 
         string text = ocrp->run(img, 10, cv::text::OCR_LEVEL_TEXTLINE);
         string pnumber = std::regex_replace(text, std::regex("([^0-9])"), "");
-        //// printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
+        printf("[6]---------->%s %s\n", text.c_str(), pnumber.c_str());
 
         if (is_ocr_detection_found(pnumber)) return true;
     }
@@ -459,7 +485,8 @@ void ofApp::img_processor()
     for (size_t i = 0; i < m_size; i++) {
         Rect rect = m_rect_found[i];
 
-        m_ocr.setFromPixels(m_grayImage.getPixels());
+        // m_ocr.setFromPixels(m_grayImage.getPixels());
+        m_ocr.setFromPixels(m_gray_resized.getPixels());
         m_ocr.crop(rect.x, rect.y, rect.width, rect.height);
 
         m_ocr.resize(m_ocr.getWidth() + OCR_IMAGE_RESIZE, m_ocr.getHeight() + OCR_IMAGE_RESIZE);
@@ -468,6 +495,8 @@ void ofApp::img_processor()
         if (ofApp::process_tesseract()) {
             string filename = "__ocr_" + to_string(i) + "_" + ofGetTimestampString() + ".jpg";
             m_ocr.save(filename);
+
+            m_rect_detected = Rect(rect.x, rect.y, rect.width, rect.height);
             return;
         }
         m_ocr.save(filename);
